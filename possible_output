@@ -1,0 +1,26 @@
+deque([deque(['b', 'a', 'g', 'e']), deque(['b', 'a']), deque(['a', 'c', 'd']), deque(['d', 'e', 'f']), deque(['b', 'a', 'h']), deque(['d', 'c']), deque(['f', 'e', 'd']), deque(['f', 'g'])])
+SLEEP 2018-12-17 12:57:57.836892n
+Link between b and a has been rebuilt.
+dijkstra.py:233: RuntimeWarning: coroutine 'Graph.rebuild_link' was never awaited
+  graph.rebuild_link(startNode,endNode,originalCost,1)
+dijkstra.py:240: RuntimeWarning: coroutine 'Graph.rebuild_link' was never awaited
+  graph.rebuild_link(startNode,endNode,originalCost,1)
+This path took 5 long.
+SLEEP 2018-12-17 12:57:59.841415n
+Link between b and a has been rebuilt.
+This path took 3 long.
+SLEEP 2018-12-17 12:58:01.843355n
+Link between a and c has been rebuilt.
+This path took 4 long.
+SLEEP 2018-12-17 12:58:03.845562n
+Link between d and e has been rebuilt.
+This path took 4 long.
+SLEEP 2018-12-17 12:58:05.847979n
+Link between b and a has been rebuilt.
+This path took 4 long.
+This path took 1 long.
+This path took 2 long.
+SLEEP 2018-12-17 12:58:07.850339n
+Link between f and g has been rebuilt.
+This path took 3 long.
+Total time: 12.014693975448608
