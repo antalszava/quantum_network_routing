@@ -1,173 +1,164 @@
-#Based on the implementation found:
-#https://dev.to/mxl/dijkstras-algorithm-in-python-algorithms-for-beginners-dkc
 
-############################################
-############################################
-
-#TODO:
-#1. create topology
-#2. create timestamp objects
-# a) add the timestamps and 
-
-#3. calculate EDT
-#4. remove the edges used
-#5. Add link creation with probability p0
-
-#+1: always have the updated info
-#+2: create Jupyter notebook
-
-#Are the packets sent simultanously, or one after the other?
-
-############################################
-############################################
-
+# Importing packages
+import os
 from collections import deque, namedtuple
-import asyncio, sched, time, random, logging
+import sched, time, random, logging, logging.handlers
 from datetime import datetime
 
-logging.basicConfig(filename='dijkstra.log',level=logging.DEBUG)
-logging.debug('This is the logfile for the Dijkstra routing algorithm on the quantum network at %s', time.time)
+# Setting up logging
+logging.basicConfig(filename='dijkstra.log',level=logging.DEBUG,
+                    filemode='w')
 
-# we'll use infinity as a default distance to nodes.
+# Setting preliminary constants
+# inf: as a default distance to nodes
+# time_threshold: threshold time for the rebuilding of the quantum link
+# original_capacity: original capacity of the quantum link
+# original_cost: cost of using the link
+# Edge: create Edge object of the graph
+
 inf = float('inf')
-Edge = namedtuple('Edge', 'start, end, cost, capacity')
+time_threshold = 10000
+original_capacity = 4
+original_cost = 1
+rebuild_probability = 0.25
+number_of_nodes = 32
+number_of_sd_pairs = 50
 
-Nodes = {
-		1 : "a",
-		2 : "b",
-		3 : "c",
-		4 : "d",
-		5 : "e",
-		6 : "f",
-        7 : "g",
-        8 : "h"
-	}
+# Edge object of a graph
+Edge = namedtuple('edge', 'start, end, cost, capacity')
 
-#defining a global threshold time and capacity for each of the channels
-#will most probably vary in the future
-timeThreshold = 100
-originalCapacity = 1
-originalCost = 1
-
-def make_edge(start, end, cost=originalCost, capacity=originalCapacity):
+# Method adding an edge in the graph
+def make_edge(start, end, cost=original_cost, capacity=original_capacity):
     return Edge(start, end, cost, capacity)
 
-def make_backward_edge(start, end, cost=originalCost, capacity=originalCapacity):
+def make_backward_edge(start, end, cost=original_cost, capacity=original_capacity):
     return Edge(end, start, cost, capacity)
 
-#TODO:
-#remove potential duplicate paths
-#TODO:
-#recreate this part using an iterator
-def gen_rand_pairs(number):
-    result = []
-    for x in range(number):
-        source = random.randint(1,number)
-        dest = random.randint(1,number)
-        while source == dest:
-            dest = random.randint(1,number)
-        result += [[Nodes[source],Nodes[dest]]]
-    return result
+#def make_backward_edge(start, end, cost=original_cost, capacity=original_capacity):
+ #   return Edge(end, start, cost, capacity)
 
+# Defining Graph class
 class Graph:
-    s = sched.scheduler(time.time, time.sleep)
+
+    # Check that the arguments are valid
     def __init__(self, edges):
-        # let's check that the data is right
         wrong_edges = [i for i in edges if len(i) not in [2, 4]]
         if wrong_edges:
             raise ValueError('Wrong edges data: %s', wrong_edges)
 
-        self.edges = [make_edge(*edge) for edge in edges] + [make_backward_edge(*edge) for edge in edges]
+        self.edges = [ make_edge(*Edge) for Edge in edges] + [make_backward_edge(*edge) for edge in edges]
 
-    # @property:
-    # https://www.programiz.com/python-programming/property 
+    # Properties of the class
     @property
     def vertices(self):
         return set(
             sum(
-                ([edge.start, edge.end] for edge in self.edges), []
+                ([this_edge.start, this_edge.end] for this_edge in self.edges), []
             )
         )
-
-    def add_link(self, startNode, endNode, cost=originalCost, capacity=originalCapacity):
-        node_pairs = [[startNode, endNode], [endNode, startNode]]
-        edges = self.edges[:]
-        for edge in edges:
-            if [edge.start, edge.end] in node_pairs:
-                self.edges.remove(edge)
-
-                #Add bidirectional link
-                self.edges.append(Edge(start=startNode, end=endNode, cost=cost, capacity=capacity))
-                self.edges.append(Edge(start=endNode, end=startNode, cost=cost, capacity=capacity))
-
-    async def rebuild_link(self, startNode, endNode, cost=originalCost, capacity=originalCapacity):
-        await rebuilding(startNode, endNode)
-        self.add_link(startNode, endNode, cost, capacity)
-        logging.debug('Link between %s and %s has been rebuilt.', startNode, endNode)
-
-    def remove_link(self, startNode, endNode):
-        
-        node_pairs = [[startNode, endNode], [endNode, startNode]]
-        edges = self.edges[:]
-        for edge in edges:
-            if [edge.start, edge.end] in node_pairs:
-                
-                #We need to wait if currently there is no available link through the channel
-                #if edge.capacity == 0:
-                    
-                #we have used a channel along this edge, remove one edge from here
-                self.edges.remove(edge)
-                self.edges.append(make_edge(edge.start, edge.end,edge.cost,edge.capacity-1))
-
-    def get_link_capacity(self, startNode, endNode):
-        node_pairs = [[startNode, endNode], [endNode, startNode]]
-        edges = self.edges[:]
-        for edge in edges:
-            if [edge.start, edge.end] in node_pairs:
-                return edge.capacity
-    
-    async def process_step(self, startNode, endNode, edt):
-
-        #If the capacity of the link is 0, then add the waiting time for rebuilding
-        if self.get_link_capacity(startNode,endNode)==0:
-            edt += timeThreshold  
-
-        #Remove the link between startNode and endNode
-        self.remove_link(startNode,endNode)
-
-        #Initializing the rebuild
-        self.rebuild_link(startNode,endNode,originalCost,1)
-        await self.rebuild_link(startNode,endNode,originalCost,1)
-
-        #Incrementing the entanglement delay time
-        edt += 1
-        return edt
-
-
-    async def process_path(self, currentPath):
-        
-        #Initializing entanglement delay time and idleness parameter
-        edt = 0
-
-        #Take the leftmost two nodes out of the deque and get the edt until we are finished
-        while True:
-            edt += self.process_step(currentPath.popleft(),currentPath.popleft(),edt)
-        if (currentPath)==0:
-            logging.debug('This path took %s long.', edt)        
-            return edt
 
     @property
     def neighbours(self):
         neighbours = {vertex: set() for vertex in self.vertices}
-        for edge in self.edges:
-            neighbours[edge.start].add((edge.end, edge.cost))
+        for this_edge in self.edges:
+            neighbours[this_edge.start].add((this_edge.end, this_edge.cost))
 
         return neighbours
 
+    # Get current capacity of a specific link
+    def link_capacity(self, startNode, endNode):
+
+        # Assembling node pairs into a list
+        node_pairs = [[startNode, endNode], [endNode, startNode]]
+        edges = self.edges[:]
+        for this_edge in edges:
+            if [this_edge.start, this_edge.end] in node_pairs:
+                return this_edge.capacity
+    
+    # Adds a link to the network specified by a pair of nodes, the cost and the capacity
+    # Assembling node pairs into a list
+    def add_link(self, startNode, endNode, cost=original_cost, capacity=original_capacity):
+
+        node_pairs = [[startNode, endNode], [endNode, startNode]]
+        edges = self.edges[:]
+        for this_edge in edges:
+            if [this_edge.start, this_edge.end] in node_pairs:
+                self.edges.remove(this_edge)
+
+                #Add bidirectional link
+                self.edges.append(Edge(startNode, endNode, cost, capacity))
+                self.edges.append(Edge(endNode, startNode, cost, capacity))
+
+    def rebuild_link(self, startNode, endNode, cost=original_cost, capacity=original_capacity):
+        sleep(time_threshold)
+        self.add_link(startNode, endNode, cost, capacity)
+        logging.debug('Link between %s and %s has been rebuilt.', startNode, endNode)
+
+    # Remove a link specified by the start and end node
+    def remove_link(self, startNode, endNode):
+        
+        node_pairs = [[startNode, endNode], [endNode, startNode]]
+        edges = self.edges[:]
+        for this_edge in edges:
+            if [this_edge.start, this_edge.end] in node_pairs:
+                
+                self.edges.remove(this_edge)
+                self.edges.append(make_edge(this_edge.start, this_edge.end,this_edge.cost,this_edge.capacity-1))
+
+    # Processes a source-destination pair of distance one of the current path
+    # by checking the capacity of the link between the start and the end node
+    #
+    # If the capacity is 0, then a probabilistic rebuild approach is used
+    #
+    # Returns the elapsed time that was needed to process the particular source-destination pair
+    def process_step(self, startNode, endNode):
+
+        local_edt = 0
+        # If the capacity of the link is 0, then
+        # do probabilistic rebuilding
+        # 
+        # Else: 
+        # Consumes a link from the remaining ones
+        # Alternatively: add the threshold waiting time for rebuilding
+        if self.link_capacity(startNode,endNode) == 0:
+            
+            #Probabilistic link creation
+            while(rebuild_probability*100<random.randint(1,100)):
+                local_edt += 1
+        else:
+            
+            #Remove the link between startNode and endNode
+            self.remove_link(startNode,endNode)
+            
+            #Incrementing the entanglement delay time
+            local_edt += 1
+        
+        return local_edt
+
+    # Works through a source-destination pair by traversing through the nodes in between and adding the elapsed time
+    #
+    # Calls on the process_step method as many times as big the distance between the source and the destination is
+    def process_path(self, currentPath):
+        
+        logging.debug('current path: %s', currentPath)
+        
+        #Initializing entanglement delay time
+        edt = 0
+        
+        #Take the leftmost two nodes out of the deque and get the edt until we are finished
+        while True:
+            startNode = currentPath.popleft()
+            endNode = currentPath.popleft()
+            edt += self.process_step(startNode,endNode)
+            currentPath.appendleft(endNode)
+            if (len(currentPath))==1:     
+                return edt
+
+    # Method calculating the shortest path Dijkstra algorithm from a given source node to the destination
     def dijkstra(self, source, dest):
         
         #Checking if the given source is existing or not
-        assert source in self.vertices, 'Such source node doesn\'t exist'
+        #assert source in self.vertices, 'Such source node doesn\'t exist'
 
         #Running the Initialize-Single-Source procedure
         distances = {vertex: inf for vertex in self.vertices}
@@ -199,60 +190,119 @@ class Graph:
         if path:
             path.appendleft(current_vertex)
         return path
+# Generates random source-destination pairs
+# The number of source-destination pairs is given by the argument
+def gen_rand_pairs(number_of_pairs):
+    result = []
+    for x in range(number_of_pairs):
+        source = random.randint(1,number_of_nodes)
+        dest = random.randint(1,number_of_nodes)
+        while source == dest:
+            dest = random.randint(1,number_of_nodes)
+        result += [[source,dest]]
+    return result
 
-#Defining the graph
-#Vertex names: a-h
-graph = Graph([
-       
-    #Initialize circular graph
-    ("a", "b"),  ("b", "c"),   ("c", "d"), ("d", "e"), ("e", "f"), ("f", "g"), ("g", "h"), ("h", "a"),
+# Generates source-destination pairs and finds the nodes in between them by calling on the dijkstra method
+def initialize_paths(graph, number_of_source_destination_pairs):
 
+    #Generate random pairs of nodes between which we are seeking a path
+    randPairs = gen_rand_pairs(number_of_source_destination_pairs)
+    #print(randPairs)
+    
+    #Assemble paths into one deque
+    paths = deque()
+    for pair in randPairs:
+        paths.appendleft(graph.dijkstra(pair[0],pair[1]))
+    return paths
 
-    #Add "diagonal" edges
-    ("a", "c"), ("d", "e"), ("e", "g"),  ("g", "a")])
+# Sending packets based on the generated source destination pairs
+# Processes these pairs by calling the process_path method on the next path
+# Processes each of the paths stored in the deque and pushes the result edt into a store
+def send_packets(graph, paths):
 
-graphOriginalEdges = graph.edges.copy()
+    edt_store = []
 
-#TODO
-#Procedure for the probabilistic link creation
-
-#TODO
-#Procedure for the link creation: both probabilistic and threshold based
-#Uses the Graph add_link procedure
-
-#Generate random pairs of nodes between which we are seeking a path
-randPairs = gen_rand_pairs(8)
-
-#Assemble paths into one deque
-paths = deque()
-for pair in randPairs:
-    paths.appendleft(graph.dijkstra(pair[0],pair[1]))
-
-logging.debug('%s', paths)
-
-async def rebuilding(startNode, endNode):  
-    logging.debug('Rebuilding the link between nodes %s and %s at %s', startNode, endNode, datetime.now())
-    await asyncio.sleep(timeThreshold)
-
-async def send_packets(graph, paths):
     while True:
+
         #Process the next path in the deque
         currentPath = paths.popleft()
-        graph.process_path(currentPath)
+        logging.debug('current method: send_packets')
+        edt_store.append(graph.process_path(currentPath))
         if(len(paths)==0):
-            break
-    
+            return edt_store
         
+def main(graph, number_of_source_destination_pairs):
+    
+    start = time.time()
+    path_store = initialize_paths(graph, number_of_source_destination_pairs)
+    
+    # Storing the distances of the paths
+    distance_store = []
+    for x in path_store:
+        distance_store.append(len(x))
+    # Calculating the entanglement delay times
+    edts = send_packets(graph, path_store)
+    
+    
+    end = time.time()  
+    logging.debug("Total time: %s", (end - start))
+    logging.debug(graph.edges)
+    return [edts,distance_store]
 
-start = time.time()  
-loop = asyncio.get_event_loop()
 
-tasks = [  
-    asyncio.ensure_future(send_packets(graph, paths))
-]
-loop.run_until_complete(asyncio.wait(tasks))  
-loop.close()
+graph1 = Graph(
+    
+    #Iniating the edges of 0) type: 1->2, 2->3, ... 31->32, 32->1 (circular graph)
+    [(x,x+1) for x in range(1,number_of_nodes)] + [(number_of_nodes,1)]
+)
 
-end = time.time()  
-logging.debug("Total time: %s", (end - start))
-logging.debug(graph.edges)
+graph2 = Graph(
+    
+    #Iniating the edges of 0) type: 1->2, 2->3, ... 31->32, 32->1 (circular graph)
+    [(x,x+1) for x in range(1,number_of_nodes)] + [(number_of_nodes,1)] +
+
+    #Iniating the edges of 1) type: 1->3, 3->5, ... 31->1
+    #Odd number of nodes  
+    [(x,x+2) for x in range(1,number_of_nodes+1)
+             if x % 2 == 1 and x < number_of_nodes and number_of_nodes % 2 == 1] +
+    
+    #Even number of nodes
+    [(x,(x+2) % number_of_nodes) for x in range(1,number_of_nodes+1) if x % 2 == 1 and x < number_of_nodes and number_of_nodes % 2 == 0]
+)
+
+graph3 = Graph(
+    
+    #Iniating the edges of 0) type: 1->2, 2->3, ... 31->32, 32->1 (circular graph)
+    [(x,x+1) for x in range(1,number_of_nodes)] + [(number_of_nodes,1)] +
+
+    #Iniating the edges of 1) type: 1->3, 3->5, ... 31->1
+    
+    #Even number of nodes
+    [(x,(x+2) % number_of_nodes) for x in range(1,number_of_nodes+1)
+                                 if x % 2 == 1 and x < number_of_nodes and number_of_nodes % 2 == 0] +
+        
+    #Odd number of nodes  
+    [(x,x+2) for x in range(1,number_of_nodes+1)
+             if x % 2 == 1 and x < number_of_nodes and number_of_nodes % 2 == 1] +
+        
+    #Iniating the edges of 2) type: 1->5, 5->9, ... 29->1
+    #Number of nodes have 0 as remainder for modulo 4  
+    [(x,x+4) for x in range(1,number_of_nodes-3) if x % 4 == 1 and number_of_nodes % 4 == 0] + [(number_of_nodes-3,1) for x in range(1,2) if number_of_nodes % 4 == 0]
+    
+)
+
+def mean(numbers):
+    return float(sum(numbers)) / max(len(numbers), 1)
+
+def loop_main(graph, number):
+    avg_edts = []
+    for x in range(1, number+1):
+        [edts, distances] = main(graph, x)
+        avg_edts.append(mean(edts))
+    return [avg_edts, distances]
+
+if __name__ == "__main__":
+
+    [avg_edts1, distances1] = loop_main(graph1, number_of_sd_pairs)
+    print(avg_edts1)
+    print(distances1)
