@@ -143,6 +143,17 @@ class TestDijkstra(unittest.TestCase):
 
         self.assertRaises(KeyError, routing_algorithms.dijkstra, local_graph, 33, 35)
 
+    def test_same_source_destination(self):
+        """
+        Test that it can sum a list of integers
+        """
+        factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=4)
+        graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+        local_graph = graph.Graph(graph_edges)
+
+        for x in range(1, factory.number_of_nodes+1):
+            self.assertEqual(routing_algorithms.dijkstra(local_graph, x, x), [x])
+
 '''
 Functions called upon in the local knowledge method: create_graph_with_local_knowledge, dijkstra,
                                                     distribute_entanglement, update_local_knowledge 
@@ -157,6 +168,7 @@ class TestLocalKnowledge(unittest.TestCase):
         for dth in range(1, 5):
             threshold = 2 ** dth
             factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=threshold)
+
 
             # Check for deterministic graph
             deterministic_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
