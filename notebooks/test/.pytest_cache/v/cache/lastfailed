@@ -1,0 +1,8 @@
+{
+  "test_dijkstra.py::TestTracebackPath::test_end_of_path_not_destination": true,
+  "test_dijkstra.py::TestTracebackPath::test_list_int": true,
+  "test_graph_edge_factory.py::TestRandomPowerLaw::test_long_links_within_threshold": true,
+  "test_power_law.py": true,
+  "test_random_power_law.py": true,
+  "test_routing_algorithms.py::TestLocalKnowledge::test_create_graph_": true
+}
