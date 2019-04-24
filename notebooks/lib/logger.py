@@ -2,7 +2,7 @@ import logging
 import importlib
 import time
 import os
-from routing_simulation import Settings
+import routing_simulation
 
 def log_graph_results(log: logging.Logger, graph_results: list, simulation_measures: list):
     for store_index in range(len(graph_results)):
@@ -22,7 +22,8 @@ def write_results_to_file(simulation_results: list, algorithm_name: str, approac
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    fileh = logging.FileHandler('./' + directory + '/' + algorithm_name + '_' + str(simulation.Settings().number_of_samples) +
+    fileh = logging.FileHandler('./' + directory + '/' + algorithm_name + '_' +
+                                str(routing_simulation.Settings().number_of_samples) +
                                 '_' + approach + '_' + timestr + '.log', 'a')
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fileh.setFormatter(formatter)

@@ -1,5 +1,30 @@
-import math
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import routing_simulation
+
 from collections import deque
+
+
+class Edge:
+    def __init__(self, capacity=1):
+        self.current_capacity = capacity
+        self.max_capacity = capacity
+        self.rebuild_times = []
+
+    def remove_edge(self):
+        if self.current_capacity > 0:
+            self.current_capacity -= 1
+
+    def set_time_till_rebuild(self, time_till_rebuild):
+        self.rebuild_times.append(time_till_rebuild)
+
+    def update_time_till_rebuild(self, time_amount):
+        self.rebuild_times = [(x - time_amount) for x in self.rebuild_times if (x - time_amount) > 0]
+        new_current_capacity = self.max_capacity - len(self.rebuild_times)
+        if new_current_capacity > self.current_capacity:
+            self.current_capacity = new_current_capacity
+
 
 class Vertex:
     def __init__(self, vertex):
@@ -10,7 +35,7 @@ class Vertex:
     # Storing the indices of neighbouring vertices
     def add_neighbour(self, neighbour, capacity=1):
         if neighbour not in self.neighbours:
-            self.neighbours[neighbour] = capacity
+            self.neighbours[neighbour] = Edge(capacity)
         else:
             return False
 
@@ -68,29 +93,11 @@ class Graph:
             log.debug("No such start node found among the vertices.")
         return self.vertices[vertex]
 
-    #@property
+
+    # TO-DO:
+    # Rewrite so that it works for lattices as well
     def dist(self, start_node, end_node):
-        #if start_node in self.Vertices.keys() and end_node in self.Vertices.keys():
         return min((start_node - end_node) % len(self.vertices), (end_node - start_node) % len(self.vertices))
-
-    def add_vertex(self, vertex):
-        if isinstance(vertex, Vertex):
-            self.Vertices[vertex.name] = vertex.neighbours
-
-    def add_vertices(self, vertices):
-        for vertex in vertices:
-            self.add_vertex(vertex)
-
-    def add_edge(self, vertex_from, vertex_to):
-        if isinstance(vertex_from, Vertex) and isinstance(vertex_to, Vertex):
-            vertex_from.add_neighbour(vertex_to)
-            if isinstance(vertex_from, Vertex) and isinstance(vertex_to, Vertex):
-                self.Vertices[vertex_from.name] = vertex_from.neighbours
-                self.Vertices[vertex_to.name] = vertex_to.neighbours
-
-    def add_edges(self, edges):
-        for edge in edges:
-            self.add_edge(edge[0], edge[1])
 
     def add_capacity(self, start_node: int, end_node: int, capacity: int):
         try:
@@ -101,7 +108,7 @@ class Graph:
             self.vertices[start_node].neighbours[end_node]
         except KeyError:
             log.debug("No such end node found among the vertices.")
-        self.vertices[start_node].neighbours[end_node] += 1
+        self.vertices[start_node].neighbours[end_node].current_capacity += capacity
 
     def get_edge_capacity(self, start_node, end_node):
 
@@ -113,20 +120,24 @@ class Graph:
             self.vertices[start_node].neighbours[end_node]
         except KeyError:
             log.debug("No such end node found among the vertices.")
-        return self.vertices[start_node].neighbours[end_node]
+        return self.vertices[start_node].neighbours[end_node].current_capacity
 
     def remove_virtual_link(self, start_node, end_node):
 
         if self.get_edge_capacity(start_node, end_node) != 0:
-            self.vertices[start_node].neighbours[end_node] -= 1
+            self.vertices[start_node].neighbours[end_node].remove_edge()
+            self.vertices[start_node].neighbours[end_node].set_time_till_rebuild(routing_simulation.Settings()
+                                                                                 .time_threshold)
         if self.get_edge_capacity(end_node, start_node) != 0:
-            self.vertices[end_node].neighbours[start_node] -= 1
+            self.vertices[end_node].neighbours[start_node].remove_edge()
+            self.vertices[end_node].neighbours[start_node].set_time_till_rebuild(routing_simulation.Settings()
+                                                                                 .time_threshold)
 
     def available_virtual_link_count(self):
         available_virtual_links_count = 0
         for start in self.vertices.keys():
-            available_virtual_links_count += sum([capacity for capacity
-                                                  in self.vertices[start].neighbours.values() if capacity != 0])
+            available_virtual_links_count += sum([edge.current_capacity for edge
+                                                  in self.vertices[start].neighbours.values() if edge.current_capacity != 0])
         if self.bidirectional:
             return available_virtual_links_count / 2
         else:
@@ -135,8 +146,8 @@ class Graph:
     def available_edge_count(self):
         available_edges_count = 0
         for start in self.vertices.keys():
-            available_edges_count += sum([1 for capacity
-                                          in self.vertices[start].neighbours.values() if capacity != 0])
+            available_edges_count += sum([1 for edge
+                                          in self.vertices[start].neighbours.values() if edge.current_capacity != 0])
         if self.bidirectional:
             return available_edges_count / 2
         else:
@@ -155,3 +166,8 @@ class Graph:
             end_node = current_path.popleft()
             self.remove_virtual_link(start_node, end_node)
             start_node = end_node
+
+    def update_edge_rebuild_times(self, update_time):
+        for start_node in self.Vertices.keys():
+            for end_node in self.Vertices[start_node].neighbours.keys():
+                self.Vertices[start_node].neighbours[end_node].update_time_till_rebuild(update_time)
