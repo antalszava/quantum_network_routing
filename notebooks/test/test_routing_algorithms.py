@@ -154,6 +154,8 @@ class TestDijkstra(unittest.TestCase):
         for x in range(1, factory.number_of_nodes+1):
             self.assertEqual(routing_algorithms.dijkstra(local_graph, x, x), [x])
 
+
+# TODO implement tests for these methods
 '''
 Functions called upon in the local knowledge method: create_graph_with_local_knowledge, dijkstra,
                                                     distribute_entanglement, update_local_knowledge 
