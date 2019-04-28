@@ -8,6 +8,20 @@ import graph_edge_factory
 import math
 
 
+class TestGraphEdgesFactory(unittest.TestCase):
+    def test_shift_by_index(self):
+        for number in range(1, 50):
+            factory = graph_edge_factory.GraphEdgesFactory(number_of_nodes = number)
+            for x in range(0, 200):
+                for y in range(0, 200):
+                    if (x + y) % factory.number_of_nodes == 0:
+                        self.assertEqual(factory.shift_by_index(x, y), factory.number_of_nodes)
+                    else:
+                        self.assertEqual(factory.shift_by_index(x, y), (x + y) % factory.number_of_nodes)
+    # TODO: test reduce edges
+    # def test_reduce_edges(self):
+
+
 class TestDeterministic(unittest.TestCase):
     def test_sum_of_edges_deterministic_graph(self):
         """

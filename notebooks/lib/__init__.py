@@ -34,6 +34,7 @@ if __name__ == "__main__":
         )
     '''
 
+    '''
     initial_knowledge_results = []
 
     for dth in range(0, 3):
@@ -43,14 +44,54 @@ if __name__ == "__main__":
 
         print(graph_edges)
 
-        '''
         arguments = {'algorithm': routing_algorithms.initial_knowledge_init, 'graph_edges': graph_edges}
         results, length = routing_simulation.run_algorithm_for_graphs(75, 100, arguments)
         initial_knowledge_results.append(results)
         '''
+    initial_knowledge_results = []
+    #for dth in range(0, 3):
+    threshold = 2 ** 2
+    factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=threshold, max_threshold=4)
+    graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+    arguments = {'algorithm': routing_algorithms.initial_knowledge_init, 'graph_edges': graph_edges}
+    result, length = routing_simulation.run_algorithm_for_graphs(50, 1, arguments)
+    initial_knowledge_results.append(result)
+
+    print(initial_knowledge_results)
+    '''
+    G = nx.MultiGraph()
+
+    factory = graph_edge_factory.GraphEdgesFactory(number_of_nodes=16, distance_threshold=4)
+    graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+
+    G.add_edges_from(graph_edges)
+    #nx.draw_circular(G, with_labels=True, edge_color='r', style='dashed', font_size='14',
+    #                 font_weight='bold', node_color='w', width=3, )
+    print(G.edges)
+
+    # labels = nx.get_edge_attributes(G,'weight')
+    # nx.draw_networkx_edge_labels(G,pos,edge_labels=labels)
+
+    temp_graph = graph.Graph(graph_edges)
+    current_frequencies = routing_algorithms.get_edge_frequencies_in_graph(temp_graph)
+
+    for edge in graph_edges:
+        start = edge[0] if edge[0] < edge[1] else edge[1]
+        end = edge[1] if edge[0] > edge[1] else edge[0]
+        G.edges[edge]['weight'] = current_frequencies[(start, end)]
+
+    
+    for edge_freq in current_frequencies:
+        G.edges[edge_freq]['weight'] = 1  # current_frequencies[edge_freq]
+    
+    print(current_frequencies)
+
+    # plt.savefig('/home/antal/Documents/eit/thesis/talks/thesis_summary/' + str(2) + '.png', bbox_inches='tight')
+    # plt.clf()
+
 
     #plot.plot_results(initial_knowledge_results, 'initial_knowledge')
-    '''
+    
 
     # global_knowledge_results = []
 

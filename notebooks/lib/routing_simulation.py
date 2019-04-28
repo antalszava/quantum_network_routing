@@ -8,6 +8,7 @@ import graph_edge_factory
 import networkx as nx
 import matplotlib.pyplot as plt
 
+
 class Settings:
     def __init__(self, time_threshold = 10000, original_capacity = 1, original_cost = 1, long_link_cost = 1000,
                     rebuild_probability = 0.25, number_of_nodes = 32, number_of_source_destination_pairs = 50,
@@ -29,16 +30,6 @@ def extract_argument(key: str, argument_dictionary: dict, default_value):
     else:
         extracted_argument = argument_dictionary[key]
     return extracted_argument
-
-
-# Add or create the value in the dictionary
-def my_add_to_dictionary(dictionary: dict, other_dictionary: dict):
-    for k,v in other_dictionary.items():
-        if k in dictionary:
-            dictionary[k] += v
-        else:
-            dictionary[k] = v
-    return dictionary
 
 
 def draw_graph(graph_edges: list, dth: int, sample_number: int):
@@ -91,7 +82,7 @@ def run_for_specific_source_destination_pair(sd_pairs: int, samples: int, algori
             results: tuple = algorithm(graph_edges, sd_pairs)
 
         if power_law:
-            my_add_to_dictionary(link_length_dictionary, link_lengths)
+            helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
         results_for_source_destination.append(results)
     return helper.map_tuple_gen(helper.mean, zip(*results_for_source_destination)), link_length_dictionary
 
@@ -107,7 +98,7 @@ def run_algorithm_for_graphs(sd_pairs: int, samples: int, arguments = None):
 
         # Summing up the values obtained in each round
         results_for_topology.append(results)
-        my_add_to_dictionary(link_length_dictionary, link_lengths)
+        helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
 
     # Returning the average of the result values
     return tuple(list(result) for result in zip(*results_for_topology)), link_length_dictionary

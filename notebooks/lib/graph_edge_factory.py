@@ -31,11 +31,10 @@ class GraphEdgesFactory:
         self.original_capacity = original_capacity
         self.max_threshold = max_threshold
 
-    def shift_by_index(self, start: int, displacement: int):
-        end = (start + displacement - 1) % self.number_of_nodes + 1
-        return end
+    def shift_by_index(self, start: int, displacement: int) -> int:
+        return (start + displacement - 1) % self.number_of_nodes + 1
 
-    def get_choice_probability(self, start_node: int, end_node: int):
+    def get_choice_probability(self, start_node: int, end_node: int) -> float:
 
         # Alternatively take out the end_node as well from the summing term
         beta_u = sum([1 / (self.physical_graph.dist(start_node, x))
@@ -50,7 +49,7 @@ class GraphEdgesFactory:
         else:
             return 0
 
-    def power_law_link(self, arguments: tuple):
+    def power_law_link(self, arguments: tuple) -> int:
 
         start_node, long_link_distance = arguments
 
@@ -72,21 +71,23 @@ class GraphEdgesFactory:
 
         return end_node
 
-    def deterministic_link(self, arguments: tuple):
+    def deterministic_link(self, arguments: tuple) -> int:
         start_node, long_link_distance = arguments
         return self.shift_by_index(start_node, long_link_distance)
 
-    def is_clockwise_indexed(self, start: int, end: int):
+    def is_clockwise_indexed(self, start: int, end: int) -> bool:
         # Checking:
         # If we regard the displacement from the start node by the distance between the start and the end
         # do we arrive in the end node?
-        return self.shift_by_index(start, self.physical_graph.dist(start, end)) == end
+        return self.shift_by_index(start, self.physical_graph.dist(start, end)) == end\
+               and self.distance_threshold != self.number_of_nodes/2\
+               or (self.distance_threshold == self.number_of_nodes/2 and start == 1)
 
     '''
     Reduces multiple edges into the same tuple
     '''
 
-    def reduce_edges(self, edge_list: list):
+    def reduce_edges(self, edge_list: list) -> list:
         local_dictionary = {}
         local_list = []
         for (start, end, capacity) in edge_list:
@@ -104,12 +105,12 @@ class GraphEdgesFactory:
             local_list.append((edge[0], edge[1], capacity))
         return local_list
 
-    def generate_virtual_links(self, create_virtual_link, distance_threshold: int, maximum_threshold: int = 16):
+    def generate_virtual_links(self, create_virtual_link, distance_threshold: int, maximum_threshold: int = 16) -> list:
         long_link_distance = min(distance_threshold, maximum_threshold)
         return [(x, create_virtual_link(tuple((x, long_link_distance))),
                  self.original_capacity) for x in range(1, self.number_of_nodes) if x % maximum_threshold == 1]
 
-    def generate_deterministic_graph_edges(self, create_virtual_link):
+    def generate_deterministic_graph_edges(self, create_virtual_link) -> list:
 
         virtual_links = []
 
@@ -132,21 +133,21 @@ class GraphEdgesFactory:
         return self.reduce_edges(self.physical_graph.edges + virtual_links)
 
     @staticmethod
-    def link_length(start_node: int, end_node: int, number_of_nodes: int = 32):
+    def link_length(start_node: int, end_node: int, number_of_nodes: int = 32) -> int:
         return min((start_node - end_node) % number_of_nodes,
                    (end_node - start_node) % number_of_nodes)
 
     @staticmethod
-    def get_link_lengths(graph_edges: list):
+    def get_link_lengths(graph_edges: list) -> dict:
         list_of_link_lengths = [GraphEdgesFactory.link_length(edge[0], edge[1]) for edge in graph_edges]
         return dict([(x, list_of_link_lengths.count(x)) for x in range(17)])
 
-    def generate_random_power_law_graph_edges(self, number_of_links: int = 4):
+    def generate_random_power_law_graph_edges(self, number_of_links: int = 1) -> tuple:
 
         virtual_links = []
 
         # Number of virtual links to be chosen at a certain node
-        k = 1
+        k = number_of_links
 
         for i in range(k):
             # Choose k many virtual links from each node in the graph

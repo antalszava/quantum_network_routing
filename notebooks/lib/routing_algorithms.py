@@ -9,7 +9,7 @@ import graph
 
 from collections import deque
 import heapq
-
+import math
 
 def traceback_path(target, parents) -> list:
     path: list = []
@@ -34,15 +34,22 @@ class HeapEntry:
 
 # Using different cost function if the capacity is 0 (cost is defined as 1000)
 
-def weight(main_graph, start: int, end: int):
+def weight(main_graph, start: int, end: int) -> int:
     if main_graph.get_edge_capacity(start, end) == 0:
-        return routing_simulation.Settings().long_link_cost * main_graph.dist(start_node = start, end_node = end)
+        return routing_simulation.Settings().long_link_cost * main_graph.dist(start_node=start, end_node=end)
     else:
         return routing_simulation.Settings().original_cost
 
 
+def link_prediction_weight(main_graph, start: int, end: int, shortest_path_source: int) -> int:
+    if start == shortest_path_source or end == shortest_path_source:
+        return weight(main_graph, start, end)
+    else:
+        return main_graph.get_weight_of_edge(start, end)
+
+
 # The Dijkstra algorithm with a support for rebuilding the best next hop
-def dijkstra(graph, start: int, finish: int) -> list:
+def dijkstra(graph, start: int, finish: int, no_link_prediction: bool = True) -> list:
     open_nodes = [HeapEntry(start, 0.0)]
     closed_nodes = set()
     parents = {start: None}
@@ -64,13 +71,14 @@ def dijkstra(graph, start: int, finish: int) -> list:
             if child in closed_nodes:
                 continue
 
-            tentative_cost = distance[current] + weight(graph, current, child)
+            current_weight = weight(graph, current, child)\
+                if no_link_prediction else link_prediction_weight(graph, current, child, start)
+
+            tentative_cost = distance[current] + current_weight
 
             if child not in distance.keys() or distance[child] > tentative_cost:
                 distance[child] = tentative_cost
                 parents[child] = current
-                if parents[child] is None:
-                    a = 2
                 heap_entry = HeapEntry(child, tentative_cost)
                 heapq.heappush(open_nodes, heap_entry)
 
@@ -94,7 +102,7 @@ Alternatively: add the threshold waiting time for rebuilding
 '''
 
 
-def entanglement_swap(graph, start_node, end_node):
+def entanglement_swap(graph, start_node:int , end_node:int ) -> tuple:
     local_edt = 0
     local_no_link_dist = 0
 
@@ -119,11 +127,11 @@ def entanglement_swap(graph, start_node, end_node):
 '''
 
 
-def distribute_entanglement(graph, current_path_list: list):
+def distribute_entanglement(graph, current_path: list):
     # Initializing entanglement delay time
     edt = 0
     no_link_dist = 0
-    remainder_of_path = deque(current_path_list)
+    remainder_of_path = deque(current_path)
     initial_node = remainder_of_path.popleft()
     get_initial = True
 
@@ -150,11 +158,13 @@ def distribute_entanglement(graph, current_path_list: list):
 
                 # If we cannot create the missing entangled links in the specific threshold time
                 # Then simply generate entangled links along the physical graph
-                if routing_simulation.Settings().time_threshold <\
-                        ((1 / routing_simulation.Settings().rebuild_probability) ** no_link_dist):
-                    edt = (1 / routing_simulation.Settings().rebuild_probability) ** graph.dist(initial_node, end_node)
+                local_settings = routing_simulation.Settings()
+                successful_rebuild_time = 1 / local_settings.rebuild_probability
+                if local_settings.time_threshold <\
+                        (successful_rebuild_time ** no_link_dist):
+                    edt = successful_rebuild_time ** graph.dist(initial_node, end_node)
                 else:
-                    edt += ((1 / routing_simulation.Settings().rebuild_probability) ** no_link_dist)
+                    edt += (successful_rebuild_time ** no_link_dist)
 
             # Rebuild the missing virtual links based on the elapsed time
             # graph.update_edge_rebuild_times(edt)
@@ -167,7 +177,7 @@ def distribute_entanglement(graph, current_path_list: list):
 # Distributing entanglement based on the generated source destination pairs
 # Processes these pairs by calling the distribute_entanglement method on the next path
 # Distributes entanglement for each of the paths stored in the deque and pushes the result edt into a store
-def get_simulation_data_for_paths(graph, paths: deque):
+def serve_demands(graph, paths: deque) -> tuple:
     edt_store = []
     virtual_links_store = []
     edge_store = []
@@ -185,29 +195,30 @@ def get_simulation_data_for_paths(graph, paths: deque):
 
 # Generates random source-destination pairs
 # The number of source-destination pairs is given by the argument
-def gen_rand_pairs(number_of_pairs: int):
+def gen_rand_pairs(number_of_pairs: int) -> list:
     result = []
+    number_of_nodes = routing_simulation.Settings().number_of_nodes
+
     for x in range(number_of_pairs):
-        source = random.randint(1, routing_simulation.Settings().number_of_nodes)
-        dest = random.randint(1, routing_simulation.Settings().number_of_nodes)
+        source = random.randint(1, number_of_nodes)
+        dest = random.randint(1, number_of_nodes)
         while source == dest:
-            dest = random.randint(1, routing_simulation.Settings().number_of_nodes)
-        result += [[source, dest]]
+            dest = random.randint(1, number_of_nodes)
+        result += [(source, dest)]
     return result
 
 
 # 1. Generates source-destination pairs
 # 2. Finds the nodes in between the SD pairs by calling on the shortest path method
-def initialize_paths(graph, number_of_source_destination_pairs: int):
+def initialize_paths(graph, number_of_source_destination_pairs: int) -> deque:
     # Generate random pairs of nodes between which we are seeking a path
-    randPairs = gen_rand_pairs(number_of_source_destination_pairs)
+    random_pairs = gen_rand_pairs(number_of_source_destination_pairs)
 
     # Assemble paths into one deque
     paths = deque()
-    for pair in randPairs:
-        path = dijkstra(graph, pair[0], pair[1])
+    for pair in random_pairs:
+        path = dijkstra(graph, pair[0], pair[1], no_link_prediction=False)
         paths.appendleft(path)
-    paths = paths
     return paths
 
 
@@ -245,8 +256,6 @@ def update_local_knowledge(main_graph, current_path: list, knowledge_radius: int
     update_along_physical_graph(main_graph, end_node, node_after, current_path)
 
 
-# ------------------------------------
-# Implementing the local algorithms
 # Nodes have knowledge about the graph based on the path discovery that they have participated in
 def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pairs: int, knowledge_radius: int = 0):
 
@@ -281,6 +290,25 @@ def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pa
     return helper.map_tuple_gen(helper.mean, zip(*result_for_source_destination))
 
 
+def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: int) -> tuple:
+
+    # Initialize paths in advance, then processing them one by one
+    # The change in network is not considered in this approach (path is NOT UPDATED)
+    path_store = initialize_paths(main_graph, number_of_source_destination_pairs)
+
+    # Storing the distances of the paths
+    distances = []
+    for x in path_store:
+        distances.append(len(x)-1)
+
+    # Serving the demands in the quantum network
+    # Calculating the entanglement delay times
+    results = serve_demands(main_graph, path_store)
+    results += (distances,)
+
+    return results
+
+
 # Create paths for the specified number of source and destination pairs, then send the packets along a specific path
 # and store the waiting time and the distance
 # graph: the graph in which we send the packets
@@ -290,19 +318,26 @@ def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs
     # Generate the specific graph object
     main_graph = graph.Graph(graph_edges)
 
-    # Initialize paths in advance, then processing them one by one
-    # The change in network is not considered in this approach (path is NOT UPDATED)
-    path_store = initialize_paths(main_graph, number_of_source_destination_pairs)
+    number_of_measures = 4
 
-    # Storing the distances of the paths
-    distance_store = []
-    for x in path_store:
-        distance_store.append(len(x)-1)
+    final_results = tuple([] for x in range(number_of_measures))
 
-    # Calculating the entanglement delay times
-    results: tuple = get_simulation_data_for_paths(main_graph, path_store)
-    results += (distance_store,)
-    return helper.map_tuple_gen(helper.mean, results)
+    time_window_size = 5
+
+    k = 1
+    while k < number_of_source_destination_pairs + 1:
+
+        if k % time_window_size == 0 or k == number_of_source_destination_pairs:
+            number_of_demands = time_window_size if k % time_window_size == 0 else k % time_window_size
+            step_results = initial_knowledge_algorithm(main_graph, number_of_demands)
+            for x in range(len(step_results)):
+                [final_results[x].append(element) for element in step_results[x]]
+
+            # Update weights in the graph which might have been consumed
+            main_graph.update_weights(k)
+        k += 1
+
+    return helper.map_tuple_gen(helper.mean, final_results)
 
 
 def global_algo(graph_edges: list, number_of_source_destination_pairs: int):
