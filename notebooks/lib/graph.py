@@ -60,7 +60,46 @@ class Graph:
 
     # Check that the arguments are valid
     # edges: list of edges awaited in the format of list(tuple(start_node, end_node, capacity))
-    def __init__(self, edges: list = None, bidirectional=True):
+    def __init__(self, edges: list = None, bidirectional=True, link_prediction=False):
+        """
+        Generic class for a graph specified by an edgelist.
+
+        Parameters
+        ----------
+        edges : list of tuple
+            Edgelist that specifies the starting vertex, end vertex and the capacity of the link.
+
+        bidirectional: bool
+            Specifies whether or not we have bidirectional links in the graph.
+
+        link_prediction: bool
+            Specifies whether or not we are conducting link prediction on the graph.
+
+        Attributes
+        ----------
+        Vertices: dict
+            Dictionary for vertex objects of the graph.
+
+        edge_frequencies: dict
+            Dictionary for the frequency of edges in the shortest paths.
+
+        link_consumption_time: dict
+            Dictionary for the times of link consumption.
+
+        bidirectional: bool
+            Boolean specifying whether or not we have bidirectional links in the graph.
+
+        Raises
+        ------
+
+        Notes
+        -----
+
+
+        Examples
+        --------
+        """
+
         self.Vertices = {}
         self.edge_frequencies = {}
         self.link_consumption_time = {}
@@ -87,8 +126,9 @@ class Graph:
 
                 self.Vertices[end_node].add_neighbour(start_node, capacity)
 
-            self.assign_edge_frequencies()
-            self.initialize_link_consumption_times()
+            if link_prediction:
+                self.assign_edge_frequencies()
+                self.initialize_link_consumption_times()
 
     @property
     def vertices(self):
@@ -117,7 +157,7 @@ class Graph:
             log.debug("No such end node found among the vertices.")
         self.vertices[start_node].neighbours[end_node].current_capacity += capacity
 
-    def get_weight_of_edge(self, start_node: int, end_node: int) -> int:
+    def get_stored_weight_of_edge(self, start_node: int, end_node: int) -> int:
         if start_node not in self.vertices or end_node not in self.vertices:
             print("No such nodes found as starts of an edge in the graph.")
 
@@ -126,7 +166,24 @@ class Graph:
             print("No such nodes found as ends of an edge in the graph.")
         return self.vertices[start_node].neighbours[end_node].weight
 
-    def update_weight_of_edge(self, start_node: int, end_node: int, weight: int) -> None:
+    def update_stored_weight_of_edge(self, start_node: int, end_node: int, weight: int) -> None:
+        """
+        Updates the stored weight of a certain edge by the value specified.
+
+        Parameters
+        ----------
+        start_node: int
+            Index of the starting vertex of the edge.
+        end_node: int
+            Index of the end vertex of the edge.
+        weight: int
+            The weight that is used during the update process.
+
+        Notes
+        -----
+            If the source vertex has knowledge about the current edge, then we assign the real weight.
+
+        """
         if start_node not in self.vertices or end_node not in self.vertices:
             print("No such nodes found as starts of an edge in the graph.")
 
@@ -137,7 +194,23 @@ class Graph:
         self.vertices[end_node].neighbours[start_node].weight = weight
         return None
 
-    def update_weights(self, elapsed_time: int):
+    def update_stored_weights(self, elapsed_time: int):
+        """
+        Determines those stored weights of edges in the graph whose link consumption time has been passed according to
+        the elapsed time. Then updates these weights with a weight corresponding to the rebuild time of an unavailable
+        link.
+
+        Parameters
+        ----------
+        elapsed_time: int
+            Elapsed time since the network has been serving demands.
+
+        Notes
+        -----
+            This is the main part of functionality of the link prediction rule. After the elapsed time, some nodes just
+            "act as if" they knew that links further away were missing.
+
+        """
         edges_to_update = [x for x in self.edge_frequencies if self.link_consumption_time[x] < elapsed_time]
         for edge in edges_to_update:
 
@@ -147,7 +220,7 @@ class Graph:
 
             new_weight = successful_rebuild_time ** self.dist(start_node, end_node)
 
-            self.update_weight_of_edge(start_node, end_node, new_weight)
+            self.update_stored_weight_of_edge(start_node, end_node, new_weight)
 
     def get_edge_capacity(self, start_node, end_node):
 
@@ -264,7 +337,7 @@ class Graph:
             None
         """
 
-        # Coefficient derived from the number of nodes in the graph (all possible edges in a )
+        # Coefficient derived from the number of nodes in the graph (all possible edges in the graph)
         link_consumption_coefficient = len(self.vertices)*len(self.vertices)/2
 
         for x in self.edge_frequencies:

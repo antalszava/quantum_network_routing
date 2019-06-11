@@ -68,6 +68,7 @@ def run_for_specific_source_destination_pair(sd_pairs: int, samples: int, algori
         power_law = True
         distance_threshold = extract_argument('distance_threshold', algorithm_arguments, 16)
 
+    link_prediction= extract_argument('link_prediction', algorithm_arguments, False)
     for x in range(1, samples + 1):
 
         if power_law:
@@ -77,12 +78,16 @@ def run_for_specific_source_destination_pair(sd_pairs: int, samples: int, algori
 
         if algorithm_arguments['algorithm'] == routing_algorithms.local_knowledge_algorithm and 'knowledge_radius' in \
                 algorithm_arguments.keys():
-            results: tuple = algorithm(graph_edges, sd_pairs, algorithm_arguments['knowledge_radius'])
-        else:
+            results: tuple = algorithm(graph_edges, sd_pairs, algorithm_arguments['knowledge_radius'],
+                                       link_prediction=link_prediction)
+        elif algorithm_arguments['algorithm'] == routing_algorithms.global_knowledge_init:
             results: tuple = algorithm(graph_edges, sd_pairs)
+        else:
+            results: tuple = algorithm(graph_edges, sd_pairs, link_prediction=link_prediction)
 
         if power_law:
             helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
+
         results_for_source_destination.append(results)
     return helper.map_tuple_gen(helper.mean, zip(*results_for_source_destination)), link_length_dictionary
 

@@ -8,6 +8,7 @@ import routing_algorithms
 import routing_simulation
 import graph_edge_factory
 import graph
+import math
 from collections import deque
 
 
@@ -309,13 +310,49 @@ class TestDijkstra(unittest.TestCase):
 class TestLinkPredictionDijkstra(unittest.TestCase):
     def test_dth2_simple_path(self):
         """
-        Test that it can sum a list of integers
+        Test that it computes the paths according to the local data
         """
+        link_prediction = True
         factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=2)
         graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
-        local_graph = graph.Graph(graph_edges)
+        local_graph = graph.Graph(graph_edges, link_prediction=link_prediction)
 
-        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 3), [3, 1], False)
+        # Shortest paths in the virtual graph
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 3, link_prediction=True), [3, 1])
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 5, link_prediction=True), [5, 3, 1])
+
+        current_step = 1000
+        local_graph.update_stored_weights(current_step)\
+
+        # Still getting the same result, as 1 is equal to the source -> knows the availability of the 1-3 link
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 3, link_prediction=True), [3, 1])
+
+        # Link 3-5 is far away, so we move along the physical graph
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 5, link_prediction=True), [5, 4, 3, 1])
+
+    def test_dth4_simple_path(self):
+        """
+        Test that it computes the paths according to the local data
+        """
+        link_prediction = True
+        factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=4)
+        graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+        local_graph = graph.Graph(graph_edges, link_prediction=link_prediction)
+
+        # Shortest paths in the virtual graph
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 3, link_prediction=True), [3, 1])
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 5, link_prediction=True), [5, 1])
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 9, link_prediction=True), [9, 5, 1])
+
+        current_step = 1000
+        local_graph.update_stored_weights(current_step)\
+
+        # Still getting the same result, as 1 is equal to the source -> knows the availability of the 1-3 link
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 3, link_prediction=True), [3, 1])
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 5, link_prediction=True), [5, 1])
+
+        # Link 5-9 is far away, so we move along the physical graph
+        self.assertEqual(routing_algorithms.dijkstra(local_graph, 1, 9, link_prediction=True), [9, 8, 7, 6, 5, 1])
 
 
 class TestEntanglement(unittest.TestCase):
@@ -360,12 +397,40 @@ class TestInitialKnowledge(unittest.TestCase):
         results = routing_algorithms.serve_demands(local_graph, deque([(1, 2)]))
         self.assertEqual(results, ([1], [55], [47]))
 
+    def test_initial_knowledge_init(self):
+        factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=2, number_of_nodes=32, max_threshold=4)
+        graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+        results = routing_algorithms.initial_knowledge_init(graph_edges, 50, link_prediction=False)
+        [self.assertEqual(50, len(x)) for x in results]
+
+    def test_initial_knowledge_step(self):
+        factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=2, number_of_nodes=32, max_threshold=4)
+        graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+        local_graph = graph.Graph(graph_edges, link_prediction=True)
+
+        local_final_results = ([], [], [], [])
+        local_time_window_size = 5
+        local_number_of_source_destination_pairs = 100
+
+        for x in range(1, local_number_of_source_destination_pairs + 1):
+            self.assertEqual(None, routing_algorithms.initial_knowledge_step(local_graph, x, local_time_window_size,
+                                                                             local_number_of_source_destination_pairs,
+                                                                             local_final_results))
+
+        # See if we really have all the rounds computed
+        [self.assertEqual(math.ceil(local_number_of_source_destination_pairs/local_time_window_size) *
+                          local_time_window_size,
+                          len(x)) for x in local_final_results]
+
+
 
 # TODO implement tests for these methods
 '''
 Functions called upon in the local knowledge method: create_graph_with_local_knowledge, dijkstra,
                                                     distribute_entanglement, update_local_knowledge 
 '''
+
+
 class TestLocalKnowledge(unittest.TestCase):
 
     @staticmethod
@@ -384,7 +449,6 @@ class TestLocalKnowledge(unittest.TestCase):
             main_graph = graph.Graph(deterministic_edges)
             for vertex in local_knowledge_graph.Vertices.values():
                 self.assertEqual(vertex.local_knowledge, main_graph)
-
 
 
 if __name__ == '__main__':

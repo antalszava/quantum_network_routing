@@ -143,17 +143,38 @@ class GraphEdgesFactory:
         return dict([(x, list_of_link_lengths.count(x)) for x in range(17)])
 
     def generate_random_power_law_graph_edges(self, number_of_links: int = 1) -> tuple:
+        """
+        Generates a random graph with a power law distribution based on the graph options specified and the
+        number of links passed.
 
-        virtual_links = []
+        Parameters
+        ----------
+        number_of_links: int
+            Specifies how many long link each node will have.
 
-        # Number of virtual links to be chosen at a certain node
-        k = number_of_links
+        Raises
+        ------
 
-        for i in range(k):
-            # Choose k many virtual links from each node in the graph
-            virtual_links += [(x, self.power_law_link(arguments=(x, self.distance_threshold,)),
-                               self.original_capacity) for x in range(1, self.number_of_nodes + 1)]
+        Notes
+        -----
+            The distance_threshold specified for the graph creator needs to be at least 2 (otherwise there are no long
+            links).
 
-        # Add up the multiple links
-        final_virtual_graph = self.physical_graph.edges + virtual_links
-        return self.reduce_edges(final_virtual_graph), GraphEdgesFactory.get_link_lengths(final_virtual_graph)
+        """
+        if 2 > self.distance_threshold:
+            print('The distance threshold needs to be at least 2.')
+        else:
+
+            virtual_links = []
+
+            # Number of virtual links to be chosen at a certain node
+            k = number_of_links
+
+            for i in range(k):
+                # Choose k many virtual links from each node in the graph
+                virtual_links += [(x, self.power_law_link(arguments=(x, self.distance_threshold,)),
+                                   self.original_capacity) for x in range(1, self.number_of_nodes + 1)]
+
+            # Add up the multiple links
+            final_virtual_graph = self.physical_graph.edges + virtual_links
+            return self.reduce_edges(final_virtual_graph)

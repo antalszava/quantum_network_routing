@@ -55,7 +55,7 @@ class TestGetEdgeFrequencies(unittest.TestCase):
             expected_number_of_pairs = number_of_nodes*(number_of_nodes-1)
 
             # Generating the paths
-            local_paths = routing_algorithms.get_paths_for_all_pairs(local_graph)
+            local_paths = local_graph.get_paths_for_all_pairs()
 
             self.assertEqual(len(local_paths), expected_number_of_pairs)
             list_of_pairs = [(path[-1:][0], path[:1][0]) for path in local_paths]
@@ -74,11 +74,11 @@ class TestGetEdgeFrequencies(unittest.TestCase):
         (b) the number of edges in the dictionary and in the paths generated
         """
         graph_edges = [(1, 2, 0), (2, 3, 0), (3, 1, 0)]
-        local_graph = graph.Graph(graph_edges)
+        local_graph = graph.Graph(graph_edges, link_prediction=True)
 
-        number_of_edges = sum([len(path)-1 for path in routing_algorithms.get_paths_for_all_pairs(local_graph)])
+        number_of_edges = sum([len(path)-1 for path in local_graph.get_paths_for_all_pairs()])
 
-        local_frequencies = routing_algorithms.get_edge_frequencies_in_graph(local_graph)
+        local_frequencies = local_graph.edge_frequencies
 
         expected_frequencies = {(1, 2): 2, (1, 3): 2, (2,3): 2}
 
@@ -98,11 +98,11 @@ class TestGetEdgeFrequencies(unittest.TestCase):
             factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=threshold, original_capacity=0)
             graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
             # print(graph_edges)
-            temp_graph = graph.Graph(graph_edges)
+            temp_graph = graph.Graph(graph_edges, link_prediction=True)
 
-            number_of_edges = sum([len(path) - 1 for path in routing_algorithms.get_paths_for_all_pairs(temp_graph)])
+            number_of_edges = sum([len(path) - 1 for path in temp_graph.get_paths_for_all_pairs()])
 
-            local_frequencies = routing_algorithms.get_edge_frequencies_in_graph(temp_graph)
+            local_frequencies = temp_graph.edge_frequencies
 
             # Check if we really have the right number of edges
             self.assertEqual(number_of_edges, sum(local_frequencies.values()))

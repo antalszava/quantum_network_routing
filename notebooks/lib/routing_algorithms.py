@@ -29,12 +29,26 @@ class HeapEntry:
         return self.distance < other.distance
 
 
-# Calculating tentative cost
-# Using hardcoded value of 1 as a cost (unique costs need to be stored for each edge)
-
-# Using different cost function if the capacity is 0 (cost is defined as 1000)
-
 def weight(main_graph, start: int, end: int) -> int:
+    """
+    Calculating the tentative weight to a certain edge in the graph according to the link prediction rule
+    while solving the shortest path problem with Dijkstra's algorithm.
+
+    Parameters
+    ----------
+    main_graph: Graph
+        The graph in which we want to assign weight in.
+    start: int
+        Index of the starting vertex of the edge.
+    end: int
+        Index of the end vertex of the edge.
+
+    Notes
+    -----
+        The weight depends on the current capacity of the edge. We have to rebuild, if there is no more links available
+        along the edge.
+    """
+
     if main_graph.get_edge_capacity(start, end) == 0:
         return routing_simulation.Settings().long_link_cost * main_graph.dist(start_node=start, end_node=end)
     else:
@@ -42,14 +56,34 @@ def weight(main_graph, start: int, end: int) -> int:
 
 
 def link_prediction_weight(main_graph, start: int, end: int, shortest_path_source: int) -> int:
+    """
+    Calculating the tentative weight to a certain edge in the graph according to the link prediction rule
+    while solving the shortest path problem with Dijkstra's algorithm.
+
+    Parameters
+    ----------
+    main_graph: Graph
+        The graph in which we want to assign weight in.
+    start: int
+        Index of the starting vertex of the edge.
+    end: int
+        Index of the end vertex of the edge.
+    shortest_path_source: int
+        Index of the source vertex to which we want to solve the shortest path problem.
+
+    Notes
+    -----
+        If the source vertex has knowledge about the current edge, then we assign the real weight.
+
+    """
     if start == shortest_path_source or end == shortest_path_source:
         return weight(main_graph, start, end)
     else:
-        return main_graph.get_weight_of_edge(start, end)
+        return main_graph.get_stored_weight_of_edge(start, end)
 
 
 # The Dijkstra algorithm with a support for rebuilding the best next hop
-def dijkstra(graph, start: int, finish: int, no_link_prediction: bool = True) -> list:
+def dijkstra(graph, start: int, finish: int, link_prediction: bool = False) -> list:
     open_nodes = [HeapEntry(start, 0.0)]
     closed_nodes = set()
     parents = {start: None}
@@ -72,7 +106,7 @@ def dijkstra(graph, start: int, finish: int, no_link_prediction: bool = True) ->
                 continue
 
             current_weight = weight(graph, current, child)\
-                if no_link_prediction else link_prediction_weight(graph, current, child, start)
+                if not link_prediction else link_prediction_weight(graph, current, child, start)
 
             tentative_cost = distance[current] + current_weight
 
@@ -127,7 +161,7 @@ def entanglement_swap(graph, start_node:int , end_node:int ) -> tuple:
 '''
 
 
-def distribute_entanglement(graph, current_path: list):
+def distribute_entanglement(graph, current_path: list, exponential_scale: bool = True):
     # Initializing entanglement delay time
     edt = 0
     no_link_dist = 0
@@ -160,11 +194,17 @@ def distribute_entanglement(graph, current_path: list):
                 # Then simply generate entangled links along the physical graph
                 local_settings = routing_simulation.Settings()
                 successful_rebuild_time = 1 / local_settings.rebuild_probability
-                if local_settings.time_threshold <\
-                        (successful_rebuild_time ** no_link_dist):
-                    edt = successful_rebuild_time ** graph.dist(initial_node, end_node)
+
+                time_to_rebuild_path = successful_rebuild_time ** no_link_dist\
+                    if exponential_scale else no_link_dist ** 2
+
+                if local_settings.time_threshold < time_to_rebuild_path:
+                    if exponential_scale:
+                        edt = successful_rebuild_time ** graph.dist(initial_node, end_node)
+                    else:
+                        edt = graph.dist(initial_node, end_node) ** 2
                 else:
-                    edt += (successful_rebuild_time ** no_link_dist)
+                    edt += time_to_rebuild_path
 
             # Rebuild the missing virtual links based on the elapsed time
             # graph.update_edge_rebuild_times(edt)
@@ -177,7 +217,7 @@ def distribute_entanglement(graph, current_path: list):
 # Distributing entanglement based on the generated source destination pairs
 # Processes these pairs by calling the distribute_entanglement method on the next path
 # Distributes entanglement for each of the paths stored in the deque and pushes the result edt into a store
-def serve_demands(graph, paths: deque) -> tuple:
+def serve_demands(graph, paths: deque, exponential_scale: bool = True) -> tuple:
     edt_store = []
     virtual_links_store = []
     edge_store = []
@@ -185,7 +225,7 @@ def serve_demands(graph, paths: deque) -> tuple:
     while True:
 
         current_path = paths.popleft()
-        edt_store.append(distribute_entanglement(graph, current_path))
+        edt_store.append(distribute_entanglement(graph, current_path, exponential_scale))
         virtual_links_store.append(graph.available_virtual_link_count())
         edge_store.append(graph.available_edge_count())
 
@@ -193,31 +233,49 @@ def serve_demands(graph, paths: deque) -> tuple:
             return edt_store, virtual_links_store, edge_store
 
 
-# Generates random source-destination pairs
-# The number of source-destination pairs is given by the argument
+def generate_demand(number_of_nodes: int) -> tuple:
+    """
+    Generates a random source and destination pair in
+
+    Parameters
+    ----------
+    number_of_nodes : int
+        Integer specifying the number of nodes in the graph.
+    """
+    source = random.randint(1, number_of_nodes)
+    dest = random.randint(1, number_of_nodes)
+    while source == dest:
+        dest = random.randint(1, number_of_nodes)
+    return source, dest
+
+
 def gen_rand_pairs(number_of_pairs: int) -> list:
+    """
+    Generates a certain number of random source-destination pairs.
+
+    Parameters
+    ----------
+    number_of_pairs : int
+        Integer specifying the number of source-destination pairs to be generated.
+    """
     result = []
     number_of_nodes = routing_simulation.Settings().number_of_nodes
 
     for x in range(number_of_pairs):
-        source = random.randint(1, number_of_nodes)
-        dest = random.randint(1, number_of_nodes)
-        while source == dest:
-            dest = random.randint(1, number_of_nodes)
-        result += [(source, dest)]
+        result += [generate_demand(number_of_nodes)]
     return result
 
 
 # 1. Generates source-destination pairs
 # 2. Finds the nodes in between the SD pairs by calling on the shortest path method
-def initialize_paths(graph, number_of_source_destination_pairs: int) -> deque:
+def initialize_paths(graph, number_of_source_destination_pairs: int, link_prediction: bool = False) -> deque:
     # Generate random pairs of nodes between which we are seeking a path
     random_pairs = gen_rand_pairs(number_of_source_destination_pairs)
 
     # Assemble paths into one deque
     paths = deque()
     for pair in random_pairs:
-        path = dijkstra(graph, pair[0], pair[1], no_link_prediction=False)
+        path = dijkstra(graph, pair[0], pair[1], link_prediction=link_prediction)
         paths.appendleft(path)
     return paths
 
@@ -257,7 +315,8 @@ def update_local_knowledge(main_graph, current_path: list, knowledge_radius: int
 
 
 # Nodes have knowledge about the graph based on the path discovery that they have participated in
-def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pairs: int, knowledge_radius: int = 0):
+def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pairs: int, knowledge_radius: int = 0,
+                              exponential_scale: bool = True):
 
     # Generate the specific graph object
     main_graph = create_graph_with_local_knowledge(graph_edges)
@@ -278,7 +337,7 @@ def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pa
         current_path = dijkstra(main_graph.vertices[source].local_knowledge, source, dest)
         current_distance = len(current_path)-1
 
-        temp_result += (distribute_entanglement(main_graph, current_path),)
+        temp_result += (distribute_entanglement(main_graph, current_path, exponential_scale),)
 
         # Update local knowledge of the nodes that are along the current path
         update_local_knowledge(main_graph, current_path, knowledge_radius)
@@ -290,11 +349,12 @@ def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pa
     return helper.map_tuple_gen(helper.mean, zip(*result_for_source_destination))
 
 
-def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: int) -> tuple:
+def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: int,
+                                link_prediction: bool = False, exponential_scale: bool = True) -> tuple:
 
     # Initialize paths in advance, then processing them one by one
     # The change in network is not considered in this approach (path is NOT UPDATED)
-    path_store = initialize_paths(main_graph, number_of_source_destination_pairs)
+    path_store = initialize_paths(main_graph, number_of_source_destination_pairs, link_prediction=link_prediction)
 
     # Storing the distances of the paths
     distances = []
@@ -303,71 +363,121 @@ def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: 
 
     # Serving the demands in the quantum network
     # Calculating the entanglement delay times
-    results = serve_demands(main_graph, path_store)
+    results = serve_demands(main_graph, path_store, exponential_scale)
     results += (distances,)
 
     return results
+
+
+def initial_knowledge_step(main_graph, current_step: int, time_window_size: int,
+                           number_of_source_destination_pairs: int, final_results: tuple,
+                           link_prediction: bool = False) -> None:
+
+    step_in_time_window = current_step % time_window_size
+    end_of_this_time_window = step_in_time_window == 0
+
+    if end_of_this_time_window or current_step == number_of_source_destination_pairs:
+        number_of_demands = time_window_size if end_of_this_time_window else step_in_time_window
+        time_window_results = initial_knowledge_algorithm(main_graph, number_of_demands,
+                                                          link_prediction=link_prediction)
+        for x in range(len(time_window_results)):
+            [final_results[x].append(element) for element in time_window_results[x]]
+
+        # Update weights in the graph which might have been consumed
+        if link_prediction:
+            main_graph.update_stored_weights(current_step)
+
+    return None
 
 
 # Create paths for the specified number of source and destination pairs, then send the packets along a specific path
 # and store the waiting time and the distance
 # graph: the graph in which we send the packets
 # number_of_source_destination_pairs: number of source and destination pairs for which we are creating a path
-def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int):
-
-    # Generate the specific graph object
-    main_graph = graph.Graph(graph_edges)
+def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int, time_window_size: int = 5,
+                           link_prediction: bool = False, exponential_scale: bool = True):
 
     number_of_measures = 4
-
     final_results = tuple([] for x in range(number_of_measures))
+    main_graph = graph.Graph(graph_edges, link_prediction=link_prediction)
 
-    time_window_size = 5
-
-    k = 1
-    while k < number_of_source_destination_pairs + 1:
-
-        if k % time_window_size == 0 or k == number_of_source_destination_pairs:
-            number_of_demands = time_window_size if k % time_window_size == 0 else k % time_window_size
-            step_results = initial_knowledge_algorithm(main_graph, number_of_demands)
-            for x in range(len(step_results)):
-                [final_results[x].append(element) for element in step_results[x]]
-
-            # Update weights in the graph which might have been consumed
-            main_graph.update_weights(k)
-        k += 1
+    if link_prediction:
+        k = 1
+        while k < number_of_source_destination_pairs + 1:
+            initial_knowledge_step(main_graph, k, time_window_size, number_of_source_destination_pairs,
+                                   final_results, link_prediction)
+            k += 1
+    else:
+        final_results = initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs,
+                                                    link_prediction=link_prediction,
+                                                    exponential_scale=exponential_scale)
 
     return helper.map_tuple_gen(helper.mean, final_results)
 
 
-def global_algo(graph_edges: list, number_of_source_destination_pairs: int):
-    # Generate the specific graph object
-    main_graph = graph.Graph(graph_edges)
+def global_knowledge_algorithm(main_graph, number_of_source_destination_pairs: int,
+                               exponential_scale: bool = True) -> list:
+    """
+    Applies the global knowledge approach for a certain graph by generating a specific number of demands.
 
+    Parameters
+    ----------
+    main_graph : list of tuple
+        The graph in which we serve the demands according to the global knowledge approach.
+
+    number_of_source_destination_pairs: bool
+        Specifies the number of demands that need to be generated.
+
+    exponential_scale: bool
+        Specifies whether long link creation scales exponentially or polynomially with time.
+
+    Notes
+    ----------
+    Add the data (measures) in the following order:
+    (1) The waiting time
+    (2) Number of available virtual links
+    (3) Number of available edges
+    (4) Distance of the path
+
+    """
     result_for_source_destination = []
+    number_of_nodes = routing_simulation.Settings().number_of_nodes
     for x in range(1, number_of_source_destination_pairs + 1):
         temp_result = ()
 
-        simulation_settings = routing_simulation.Settings()
-
-        source = random.randint(1, simulation_settings.number_of_nodes)
-        dest = random.randint(1, simulation_settings.number_of_nodes)
-
-        while source == dest:
-            dest = random.randint(1, simulation_settings.number_of_nodes)
+        source, dest = generate_demand(number_of_nodes)
 
         # Initialize path
         # The change in network is considered in this approach (path is UPDATED)
-        current_path = deque(dijkstra(main_graph, source, dest))
+        current_path = dijkstra(main_graph, source, dest)
 
-        # Add the data (measures) in the following order:
-        # (1) The waiting time
-        # (2) Number of available virtual links
-        # (3) Number of available edges
-        # (4) Distance of the path
-        temp_result += (distribute_entanglement(main_graph, current_path),)
+        temp_result += (distribute_entanglement(main_graph, current_path, exponential_scale),)
         temp_result += (main_graph.available_virtual_link_count(),)
         temp_result += (main_graph.available_edge_count(),)
         temp_result += (len(current_path)-1,)
         result_for_source_destination.append(temp_result)
+    return result_for_source_destination
+
+
+def global_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int,
+                          exponential_scale: bool = True) -> tuple:
+    """
+    Initiates the global knowledge approach in graph.
+
+    Parameters
+    ----------
+    graph_edges : list of tuple
+        Edgelist that specifies the edges of the graph to be created.
+
+    number_of_source_destination_pairs: bool
+        Specifies the number of demands that need to be generated.
+
+    exponential_scale: bool
+        Specifies whether long link creation scales exponentially or polynomially with time.
+
+    """
+    main_graph = graph.Graph(graph_edges)
+
+    result_for_source_destination = global_knowledge_algorithm(main_graph, number_of_source_destination_pairs,
+                                                               exponential_scale)
     return helper.map_tuple_gen(helper.mean, zip(*result_for_source_destination))
