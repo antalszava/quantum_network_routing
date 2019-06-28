@@ -394,7 +394,7 @@ def initial_knowledge_step(main_graph, current_step: int, time_window_size: int,
 # and store the waiting time and the distance
 # graph: the graph in which we send the packets
 # number_of_source_destination_pairs: number of source and destination pairs for which we are creating a path
-def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int, time_window_size: int = 5,
+def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int, time_window_size: int = 1,
                            link_prediction: bool = False, exponential_scale: bool = True):
 
     number_of_measures = 4

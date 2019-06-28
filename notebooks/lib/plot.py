@@ -12,7 +12,7 @@ def plot_specific_measure(results: list, algo_name, topology_names: list, measur
     timestr = time.strftime("%y_%m_%d__%H_%M")
 
     if defined_color:
-        colors = ['red', 'green', 'blue', 'purple', 'darkorange']
+        colors = ['red', 'green', 'blue', 'purple', 'darkorange', 'magenta']
     else:
         colors = numpy.random.rand(len(results), )
 

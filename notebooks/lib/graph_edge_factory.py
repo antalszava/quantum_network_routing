@@ -79,9 +79,9 @@ class GraphEdgesFactory:
         # Checking:
         # If we regard the displacement from the start node by the distance between the start and the end
         # do we arrive in the end node?
-        return self.shift_by_index(start, self.physical_graph.dist(start, end)) == end\
-               and self.distance_threshold != self.number_of_nodes/2\
-               or (self.distance_threshold == self.number_of_nodes/2 and start == 1)
+        return self.shift_by_index(start, self.physical_graph.dist(start, end)) == end
+
+
 
     '''
     Reduces multiple edges into the same tuple
@@ -93,7 +93,9 @@ class GraphEdgesFactory:
         for (start, end, capacity) in edge_list:
 
             # Swap the start and end nodes, if not indexed in the same direction
-            if not self.is_clockwise_indexed(start, end):
+            if not self.is_clockwise_indexed(start, end) or (abs(start-end) == self.distance_threshold and
+                                                             self.distance_threshold == self.number_of_nodes/2
+                                                             and 1 != start):
                 start, end = end, start
 
             # Add them to the dictionary for keeping track
