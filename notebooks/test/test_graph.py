@@ -23,8 +23,8 @@ class TestGetEdgeFrequencies(unittest.TestCase):
         path_length = 50
         local_current_path_list = [x for x in range(path_length)]
 
-        factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=1)
-        graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+        factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=1)
+        graph_edges = factory.generate_deterministic_graph_edges()
         local_graph = graph.Graph(graph_edges)
 
         # Clear the edge_frequencies
@@ -47,8 +47,8 @@ class TestGetEdgeFrequencies(unittest.TestCase):
             # Creating the related graph object
             threshold = 2 ** dth
 
-            factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=threshold)
-            deterministic_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+            factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=threshold)
+            deterministic_edges = factory.generate_deterministic_graph_edges()
             local_graph = graph.Graph(deterministic_edges)
 
             number_of_nodes = len(local_graph.Vertices)
@@ -95,8 +95,8 @@ class TestGetEdgeFrequencies(unittest.TestCase):
             threshold = 2 ** dth
 
             # Creating on-demand graphs
-            factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=threshold, original_capacity=0)
-            graph_edges = factory.generate_deterministic_graph_edges(factory.deterministic_link)
+            factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=threshold, capacity=0)
+            graph_edges = factory.generate_deterministic_graph_edges()
             # print(graph_edges)
             temp_graph = graph.Graph(graph_edges, link_prediction=True)
 

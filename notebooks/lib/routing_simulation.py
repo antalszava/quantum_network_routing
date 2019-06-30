@@ -5,14 +5,75 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import helper
 import routing_algorithms
 import graph_edge_factory
-import networkx as nx
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Settings:
+    """
+    Generic class for simulation settings.
+
+    Attributes
+    ----------
+    time_threshold: int
+        The time threshold specified for the decoherence time.
+
+    original_capacity: int
+        Original capacity of links.
+
+    original_cost: int
+        Original cost of links.
+
+    long_link_cost: int
+        Cost of long links.
+
+    rebuild_probability: float
+        Probability of rebuilding a link in a given time window.
+
+    number_of_nodes: int
+        The number of nodes of the graph in the simulation.
+
+    number_of_source_destination_pairs: int
+        The number of nodes of the graph in the simulation.
+
+    number_of_samples: int
+        Number of times the simulation is repeated.
+
+    inf: float
+        The value of infinity used in finding the shortest path.
+    """
     def __init__(self, time_threshold = 10000, original_capacity = 1, original_cost = 1, long_link_cost = 1000,
                     rebuild_probability = 0.25, number_of_nodes = 32, number_of_source_destination_pairs = 50,
                     number_of_samples = 1000):
+        """
+        Generic class for simulation settings.
+
+        Parameters
+        ----------
+        time_threshold: int
+            The time threshold specified for the decoherence time.
+
+        original_capacity: int
+            Original capacity of links.
+
+        original_cost: int
+            Original cost of links.
+
+        long_link_cost: int
+            Cost of long links.
+
+        rebuild_probability: float
+            Probability of rebuilding a link in a given time window.
+
+        number_of_nodes: int
+            The number of nodes of the graph in the simulation.
+
+        number_of_source_destination_pairs: int
+            The number of nodes of the graph in the simulation.
+
+        number_of_samples: int
+            Number of times the simulation is repeated.
+        """
         self.time_threshold = time_threshold
         self.original_capacity = original_capacity
         self.original_cost = original_cost
@@ -24,7 +85,22 @@ class Settings:
         self.inf = float('inf')
 
 
-def extract_argument(key: str, argument_dictionary: dict, default_value):
+def extract_argument(argument_dictionary: dict, key: str, default_value):
+    """
+    Helper function that extracts an argument from a dictionary of arguments.
+    Returns a default value if the key is not in the dictionary.
+
+    Parameters
+    ----------
+    argument_dictionary: dict
+        Dictionary of arguments to be used in the simulation.
+
+    key: str
+        The key whose value is to be extracted from the dictionary of arguments.
+
+    default_value
+        Default value
+    """
     if key not in argument_dictionary.keys():
         extracted_argument = default_value
     else:
@@ -32,76 +108,93 @@ def extract_argument(key: str, argument_dictionary: dict, default_value):
     return extracted_argument
 
 
-def draw_graph(graph_edges: list, dth: int, sample_number: int):
+def run_for_specific_source_destination_pair(number_of_source_destination_pairs: int, samples: int, algorithm=None,
+                                             graph_edges: list = None, distance_threshold: int = None,
+                                             propagation_radius: int = None, exponential_scale: bool = True,
+                                             link_prediction: bool = False):
 
-    G = nx.MultiGraph()
-    G.add_edges_from(graph_edges)
-    nx.draw_circular(G, with_labels=True)
-
-    plt.savefig('/home/antal/Documents/eit/thesis/implementation/quantum_routing/notebooks/plots/random_power_law/'
-                'graph_images/' + str(dth) + '_' + str(sample_number)+ '_' + '.png', bbox_inches='tight')
-    plt.clf()
-    return None
-
-
-# Execute the simulation for a distinct number of source and destination pairs multiple times
-# graph: the graph in which we send the packets
-# sd_pairs: number of source and destination pairs for which we are simulating for
-# samples times: number of times we repeat the simulation
-# algorithm: algorithm to be used to get the path and waiting time for a specific sd pair (default is Dijkstra)
-def run_for_specific_source_destination_pair(sd_pairs: int, samples: int, algorithm_arguments = None):
     results_for_source_destination = []
     link_length_dictionary = {}
 
-    # Processing arguments
-
-    # Extracting the algorithm
-    algorithm = extract_argument('algorithm', algorithm_arguments, routing_algorithms.initial_knowledge_init)
-
-    power_law = False
-    # Extracting the model and the distance_threshold
-    # if graph_edges are specified: then the topology is deterministically generated
-    # Else: generate it based on the power-law distribution
-    if 'graph_edges' in algorithm_arguments.keys():
-        graph_edges = algorithm_arguments['graph_edges']
-    else:
-        power_law = True
-        distance_threshold = extract_argument('distance_threshold', algorithm_arguments, 16)
-
-    link_prediction = extract_argument('link_prediction', algorithm_arguments, False)
-    exponential_scale = extract_argument('exponential_scale', algorithm_arguments, False)
     for x in range(1, samples + 1):
 
-        if power_law:
+        # If the edges of the graph were not specified, then a random graph was specified
+        if graph_edges is None:
             factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=distance_threshold)
             graph_edges, link_lengths = factory.generate_random_power_law_graph_edges()
-            # draw_graph(graph_edges, distance_threshold, x)
-
-        if algorithm_arguments['algorithm'] == routing_algorithms.local_knowledge_algorithm and 'knowledge_radius' in \
-                algorithm_arguments.keys():
-            results: tuple = algorithm(graph_edges, sd_pairs, algorithm_arguments['knowledge_radius'],
-                                       link_prediction=link_prediction, exponential_scale=exponential_scale)
-        elif algorithm_arguments['algorithm'] == routing_algorithms.global_knowledge_init:
-            results: tuple = algorithm(graph_edges, sd_pairs, exponential_scale=exponential_scale)
-        else:
-            results: tuple = algorithm(graph_edges, sd_pairs, link_prediction=link_prediction,
-                                       exponential_scale=exponential_scale)
-
-        if power_law:
             helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
 
+        if algorithm == routing_algorithms.local_knowledge_algorithm and propagation_radius is not None:
+            results: tuple = algorithm(graph_edges, number_of_source_destination_pairs, propagation_radius,
+                                       exponential_scale=exponential_scale)
+        elif algorithm == routing_algorithms.global_knowledge_init:
+            results: tuple = algorithm(graph_edges, number_of_source_destination_pairs,
+                                       exponential_scale=exponential_scale)
+        else:
+            results: tuple = algorithm(graph_edges, number_of_source_destination_pairs, link_prediction=link_prediction,
+                                       exponential_scale=exponential_scale)
+
         results_for_source_destination.append(results)
-    return helper.map_tuple_gen(helper.mean, zip(*results_for_source_destination)), link_length_dictionary
+    return results_for_source_destination, link_length_dictionary
 
 
-# Simulation for more than one run of the loop_for_specific_sd_pair
-def run_algorithm_for_graphs(sd_pairs: int, samples: int, arguments = None):
+def extract_arguments_for_run_round(number_of_source_destination_pairs: int,
+                                    samples: int, algorithm_arguments = None):
+    """
+    Execute the simulation for a specific number of source and destination pairs multiple times
+
+    Parameters
+    ----------
+    number_of_source_destination_pairs: int
+        Specifies the number of demands that need to be generated.
+
+    samples: int
+        The number of times the simulation will be repeated.
+
+    algorithm_arguments: dict
+        Dictionary containing the arguments needed for the algorithm.
+    """
+
+    # Extracting the arguments for the algorithm
+    algorithm = extract_argument(algorithm_arguments, 'algorithm', routing_algorithms.initial_knowledge_init)
+    graph_edges = extract_argument(algorithm_arguments, 'graph_edges', None)
+    distance_threshold = extract_argument(algorithm_arguments, 'distance_threshold', 16)
+
+    # If the algorithm is the local knowledge algorithm
+    propagation_radius = extract_argument(algorithm_arguments, 'propagation_radius', None)
+
+    link_prediction = extract_argument(algorithm_arguments, 'link_prediction', False)
+    exponential_scale = extract_argument(algorithm_arguments, 'exponential_scale', False)
+
+    # Running the simulation for the specific source and destination pairs
+    results_for_source_destination, link_length_dictionary =\
+        run_for_specific_source_destination_pair(number_of_source_destination_pairs, samples, algorithm, graph_edges,
+                                                 distance_threshold, propagation_radius,
+                                                 exponential_scale, link_prediction)
+    return helper.map_tuple_gen(np.mean, zip(*results_for_source_destination)), link_length_dictionary
+
+
+def run_algorithm_for_graphs(number_of_source_destination_pairs: int, samples: int, algorithm_arguments = None):
+    """
+    Execute the simulation the specified number of source and destination pairs.
+
+    Parameters
+    ----------
+    number_of_source_destination_pairs: int
+        Specifies the number of demands that need to be generated.
+
+    samples: int
+        The number of times the simulation will be repeated.
+
+    algorithm_arguments: dict
+        Dictionary containing the arguments needed for the algorithm.
+    """
     results_for_topology = []
     link_length_dictionary = {}
 
     # Iterating through the remaining simulation rounds
-    for x in range(1, sd_pairs + 1):
-        results, link_lengths = run_for_specific_source_destination_pair(x, samples, arguments)
+    for x in range(1, number_of_source_destination_pairs + 1):
+        results, link_lengths = extract_arguments_for_run_round(x, samples, algorithm_arguments)
 
         # Summing up the values obtained in each round
         results_for_topology.append(results)
