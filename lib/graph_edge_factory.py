@@ -3,6 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import numpy as np
 import graph
+import math
 
 
 class VirtualEdgeFactory:
@@ -205,14 +206,13 @@ class VirtualEdgeFactory:
         # Initiating the edges of 1) type: 1->3, 3->5, ... 31->1
         virtual_links += self.generate_deterministic_virtual_link(self.distance_threshold, 2)
 
-        # Initiating the edges of 2) type: 1->5, 5->9, ... 29->1
-        # Number of nodes have 0 as remainder for modulo 4
-        virtual_links += self.generate_deterministic_virtual_link(self.distance_threshold, 4)
+        max_threshold_exponent = math.log(math.floor(self.number_of_nodes/2), 2)
 
-        if 8 <= self.max_distance_threshold:
-            virtual_links += self.generate_deterministic_virtual_link(self.distance_threshold, 8)
-        if 16 <= self.max_distance_threshold:
-            virtual_links += self.generate_deterministic_virtual_link(self.distance_threshold, 16)
+        # Adding long links (that are of at least physical distance 2 from a certain node)
+        for threshold_exponent in range(2, int(max_threshold_exponent) + 1):
+            current_threshold = 2 ** threshold_exponent
+            if current_threshold <= self.max_distance_threshold:
+                virtual_links += self.generate_deterministic_virtual_link(self.distance_threshold, current_threshold)
 
         # Add up the multiple links
         return self.reduce_edges(self.physical_graph_edges + virtual_links)
@@ -226,9 +226,6 @@ class VirtualEdgeFactory:
         ----------
         number_of_links: int
             Specifies how many long link each node will have.
-
-        Raises
-        ------
 
         Notes
         -----
@@ -250,3 +247,4 @@ class VirtualEdgeFactory:
             # Add up the multiple links
             final_virtual_graph = self.physical_graph_edges + virtual_links
             return self.reduce_edges(final_virtual_graph)
+	

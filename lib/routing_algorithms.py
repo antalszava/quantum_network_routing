@@ -22,7 +22,7 @@ def entanglement_swap(graph, start_node: int, end_node: int) -> tuple:
     Parameters
     ----------
     graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we want to perform entanglement swap.
     start_node: int
         Index of the starting vertex, from which we are looking for the shortest path.
     end_node: int
@@ -63,7 +63,7 @@ def compute_latency_to_rebuild(graph, initial_node: int, end_node: int,
     Parameters
     ----------
     graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
     start_node: int
         Index of the starting vertex, from which we are looking for the shortest path.
     end_node: int
@@ -120,7 +120,7 @@ def distribute_entanglement(graph, current_path: list, exponential_scale: bool =
     Parameters
     ----------
     graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
     current_path: list
         Index of the starting vertex, from which we are looking for the shortest path.
     exponential_scale: bool
@@ -186,7 +186,7 @@ def serve_demands(graph, paths: deque, exponential_scale: bool = True) -> tuple:
     Parameters
     ----------
     graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
     paths: deque
         The paths
     exponential_scale: bool
@@ -264,7 +264,7 @@ def initialize_paths(graph, number_of_source_destination_pairs: int, link_predic
     Parameters
     ----------
     graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
 
     number_of_source_destination_pairs: int
         The paths
@@ -312,7 +312,7 @@ def update_along_physical_graph(main_graph, start_node: int, end_node: int, curr
     Parameters
     ----------
     main_graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
 
     start_node: int
         Index of the starting vertex, from which we are looking for the shortest path.
@@ -336,7 +336,7 @@ def update_local_knowledge(main_graph, current_path: list, propagation_radius: i
     Parameters
     ----------
     main_graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
 
     current_path: list
         The list of virtual links to be used in the current path.
@@ -427,7 +427,7 @@ def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: 
     Parameters
     ----------
     main_graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
 
     number_of_source_destination_pairs: int
         Specifies the number of demands that need to be generated.
@@ -466,7 +466,7 @@ def initial_knowledge_step(main_graph, current_step: int, time_window_size: int,
     Parameters
     ----------
     main_graph: Graph
-        The graph in which we want to assign weight in.
+        The graph in which we run our simulation.
 
     current_step: int
         Specifies the step at which the initial knowledge algorithm is at.
