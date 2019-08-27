@@ -7,7 +7,7 @@ import routing_algorithms
 import graph_edge_factory
 import matplotlib.pyplot as plt
 import numpy as np
-
+import scipy.stats as ss
 
 class Settings:
     """
@@ -42,7 +42,7 @@ class Settings:
     inf: float
         The value of infinity used in finding the shortest path.
     """
-    def __init__(self, time_threshold = 10000, original_capacity = 1, original_cost = 1, long_link_cost = 1000,
+    def __init__(self, time_threshold = 1000, original_capacity = 1, original_cost = 1, long_link_cost = 1000,
                     rebuild_probability = 0.25, number_of_nodes = 32, number_of_source_destination_pairs = 50,
                     number_of_samples = 1000):
         """
@@ -120,9 +120,9 @@ def run_for_specific_source_destination_pair(number_of_source_destination_pairs:
 
         # If the edges of the graph were not specified, then a random graph was specified
         if graph_edges is None:
-            factory = graph_edge_factory.GraphEdgesFactory(distance_threshold=distance_threshold)
-            graph_edges, link_lengths = factory.generate_random_power_law_graph_edges()
-            helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
+            factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=distance_threshold)
+            graph_edges = factory.generate_random_power_law_graph_edges()
+            # helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
 
         if algorithm == routing_algorithms.local_knowledge_algorithm and propagation_radius is not None:
             results: tuple = algorithm(graph_edges, number_of_source_destination_pairs, propagation_radius,
@@ -171,7 +171,20 @@ def extract_arguments_for_run_round(number_of_source_destination_pairs: int,
         run_for_specific_source_destination_pair(number_of_source_destination_pairs, samples, algorithm, graph_edges,
                                                  distance_threshold, propagation_radius,
                                                  exponential_scale, link_prediction)
-    return helper.map_tuple_gen(np.mean, zip(*results_for_source_destination)), link_length_dictionary
+
+    return helper.map_tuple_gen(np.mean, zip(*results_for_source_destination)),\
+           helper.map_tuple_gen(compute_mean_with_confidence, zip(*results_for_source_destination)),\
+           link_length_dictionary
+
+
+def compute_mean_with_confidence(data: list, confidence: float = 0.95):
+
+    # Calculating confidence interval values of the result
+    n = len(data)
+    std_err = ss.sem(data)
+    degrees_of_freedom = n - 1
+    h = std_err * ss.t.ppf((1 + confidence) / 2, degrees_of_freedom)
+    return h
 
 
 def run_algorithm_for_graphs(number_of_source_destination_pairs: int, samples: int, algorithm_arguments = None):
@@ -190,15 +203,18 @@ def run_algorithm_for_graphs(number_of_source_destination_pairs: int, samples: i
         Dictionary containing the arguments needed for the algorithm.
     """
     results_for_topology = []
+    error_intervals_for_topology = []
     link_length_dictionary = {}
 
     # Iterating through the remaining simulation rounds
     for x in range(1, number_of_source_destination_pairs + 1):
-        results, link_lengths = extract_arguments_for_run_round(x, samples, algorithm_arguments)
+        results, error, link_lengths = extract_arguments_for_run_round(x, samples, algorithm_arguments)
 
         # Summing up the values obtained in each round
         results_for_topology.append(results)
+        error_intervals_for_topology.append(error)
         helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
 
     # Returning the average of the result values
-    return tuple(list(result) for result in zip(*results_for_topology)), link_length_dictionary
+    return tuple(list(result) for result in zip(*results_for_topology)),\
+           tuple(list(result) for result in zip(*error_intervals_for_topology)), link_length_dictionary

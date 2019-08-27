@@ -2,11 +2,11 @@ import matplotlib.pyplot as plt
 import time
 import os
 import numpy
-import matplotlib2tikz
+import tikzplotlib
 
 
-def plot_specific_measure(results: list, algo_name, topology_names: list, measures: list,  measure_index: int,
-                          number_of_samples: int = 1000, plot_type='approach',
+def plot_specific_measure(results: list, algo_name, topology_names: list, measures: list,
+                          measure_index: int, number_of_samples: int = 1000, plot_type='approach',
                           defined_color: bool = True, save_tikz: bool = True):
     """
     Plots the specific measures coming from the results.
@@ -47,8 +47,11 @@ def plot_specific_measure(results: list, algo_name, topology_names: list, measur
     else:
         colors = numpy.random.rand(len(results), )
 
+    markers = ["^", "o", "*", "D", "p"]
     for index in range(len(results)):
-        plt.plot(results[index][measure_index], color=colors[index], label=topology_names[index])
+        y = results[index][measure_index]
+        plt.plot(range(1, len(y)+1), y, color=colors[index], label=topology_names[index], marker=markers[index],
+                 markersize=4)
 
     plt.grid(color='b', linestyle='-', linewidth=0.1)
     plt.xlabel('Number of source-destination pairs')
@@ -70,7 +73,7 @@ def plot_specific_measure(results: list, algo_name, topology_names: list, measur
                     measures[measure_index] + '_' + timestr + '.png', bbox_inches='tight')
         plt.show()
     else:
-        matplotlib2tikz.save('./' + directory + '/' + algo_name + '_' + str(number_of_samples) + '_' +
+        tikzplotlib.save('./' + directory + '/' + algo_name + '_' + str(number_of_samples) + '_' +
                              measures[measure_index] + '_' + timestr + '.tex')
         plt.clf()
 

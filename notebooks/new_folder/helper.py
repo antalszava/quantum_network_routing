@@ -30,6 +30,15 @@ def map_tuple_gen(func, tup):
 
 
 '''
+Returns the mean of an iterable (e.g. list of numbers)
+'''
+
+
+def mean(numbers):
+    return float(sum(numbers)) / max(len(numbers), 1)
+
+
+'''
 Add or update a key-value pair to the dictionary
 '''
 

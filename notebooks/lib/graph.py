@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import routing_simulation
 import shortest_path
 import helper
+import networkx as nx
 
 from collections import deque
 
@@ -131,8 +132,14 @@ class Graph:
         """
 
         self.Vertices = {}
-        self.edge_frequencies = {}
+        self.edge_betweenness_centrality_store = {}
         self.link_consumption_time = {}
+        self.elapsed_time = 0
+        # self.edge_list = edges
+
+        self.G = nx.Graph()
+        for x in edges:
+            self.G.add_edge(x[0], x[1], weight=1)
 
         # Initializing graph based on edges
         if edges is not None:
@@ -249,8 +256,17 @@ class Graph:
             start_node not in self.vertices[end_node].neighbours:
             print("No such nodes found as starts of an edge in the graph.")
         else:
+            self.G.edges[start_node, end_node]['weight'] = weight
             self.vertices[start_node].neighbours[end_node].weight = weight
             self.vertices[end_node].neighbours[start_node].weight = weight
+
+    def update_local_edgelist(self, edges_to_update: list):
+        for edge in edges_to_update:
+            for stored_edge in self.edge_list:
+                if (edge[0] == stored_edge[0] and edge[1] == stored_edge[1]) or \
+                        (edge[0] == stored_edge[1] and edge[1] == stored_edge[0]):
+                    self.edge_list.remove(stored_edge)
+                    continue
 
     def update_stored_weights(self, elapsed_time: int):
         """
@@ -269,16 +285,30 @@ class Graph:
             "act as if" they knew that links further away were missing.
 
         """
-        edges_to_update = [x for x in self.edge_frequencies if self.link_consumption_time[x] < elapsed_time]
+        original_weight = routing_simulation.Settings().original_cost
+        edges_to_update = [x for x in self.edge_betweenness_centrality_store
+                           if self.link_consumption_time[x] < elapsed_time and
+                           self.get_stored_weight_of_edge(*x) == original_weight]
         for edge in edges_to_update:
+
+            # self.update_local_edgelist(edges_to_update)
+
+            # self.G.remove_edge(*edge)
 
             start_node = edge[0]
             end_node = edge[1]
             successful_rebuild_time = 1 / routing_simulation.Settings().rebuild_probability
 
-            new_weight = successful_rebuild_time ** self.physical_distance(start_node, end_node)
-
+            #new_weight = successful_rebuild_time ** self.physical_distance(start_node, end_node)
+            new_weight = routing_simulation.Settings().long_link_cost * \
+                         self.physical_distance(start_node=start_node, end_node=end_node)
             self.update_stored_weight_of_edge(start_node, end_node, new_weight)
+        '''
+        if edges_to_update:
+            self.assign_edge_frequencies()
+            self.initialize_link_consumption_times()
+            self.elapsed_time += elapsed_time
+        '''
 
     def get_edge_capacity(self, start_node: int, end_node: int):
         """
@@ -363,9 +393,9 @@ class Graph:
             List of shortest paths for each viable pair.
         """
         return [shortest_path.dijkstra(self, x, y) for x in range(1, len(self.Vertices) + 1)
-                for y in range(1, len(self.Vertices) + 1) if x != y]
+                for y in range(1, len(self.Vertices) + 1) if x != y and x < y]
 
-    def add_frequency_for_path(self, current_path: list) -> None:
+    def add_frequency_for_path(self, current_path: list):
         """
         Get the frequency of edges used in paths among all possible source-destination pairs
 
@@ -390,13 +420,13 @@ class Graph:
             end_node = remainder_of_path.popleft()
 
             if start_node > end_node:
-                helper.add_tuple_to_dictionary(self.edge_frequencies, ((end_node, start_node), 1))
+                helper.add_tuple_to_dictionary(self.edge_betweenness_centrality_store, ((end_node, start_node), 1))
             else:
-                helper.add_tuple_to_dictionary(self.edge_frequencies, ((start_node, end_node), 1))
+                helper.add_tuple_to_dictionary(self.edge_betweenness_centrality_store, ((start_node, end_node), 1))
 
             # Check if we have processed the path
             if len(remainder_of_path) == 0:
-                return None
+                return
 
             # Put the end node back into the deque
             remainder_of_path.appendleft(end_node)
@@ -411,6 +441,10 @@ class Graph:
         Returns:
             Dictionary containing frequencies of edges in graph, edges are specified by tuples
         """
+        # Iterated link prediction:
+
+        # self.edge_betweenness_centrality_store = nx.edge_betweenness_centrality(self.G, weight='weight')
+
         paths = deque(self.get_paths_for_all_pairs())
         while True:
 
@@ -433,8 +467,17 @@ class Graph:
         # Coefficient coming from all the possible edges in the graph
         link_consumption_coefficient = len(self.vertices)*(len(self.vertices)-1)/2
 
-        for x in self.edge_frequencies:
-            self.link_consumption_time[x] = link_consumption_coefficient/self.edge_frequencies[x]
+        for x in self.edge_betweenness_centrality_store:
+
+            # Extracting the capacity of the edge and adding it as a coefficient
+            start_node, end_node = x
+            capacity_coefficient = self.Vertices[start_node].neighbours[end_node].max_capacity
+
+            edge_link_consumption_time = (capacity_coefficient * link_consumption_coefficient) /\
+                                         self.edge_betweenness_centrality_store[x]
+            # if self.edge_betweenness_centrality_store[x] != 0:
+            # edge_link_consumption_time = capacity_coefficient / self.edge_betweenness_centrality_store[x]
+            self.link_consumption_time[x] = edge_link_consumption_time
 
     def add_local_knowledge(self, local_knowledge_graph_edges: list):
         """

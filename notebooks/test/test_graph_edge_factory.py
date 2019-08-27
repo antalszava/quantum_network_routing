@@ -40,6 +40,38 @@ class TestDeterministic(unittest.TestCase):
 
             self.assertEqual(sum_of_edges, number_of_edges, "The number of edges is not the expected value.")
 
+    def test_generate_deterministic_graph_edges_generates_links_along_physical_graph(self):
+        for max_dth in range(1, 5):
+            for dth in range(1, max_dth +1):
+                threshold = 2 ** dth
+                max_threshold = 2 ** max_dth
+                factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=threshold,
+                                                                max_distance_threshold=max_threshold)
+                graph_edges = factory.generate_deterministic_graph_edges()
+                graph_edges_without_capacities = [(x[0], x[1]) for x in graph_edges]
+
+                for node in range(1, factory.number_of_nodes + 1):
+
+                    self.assertTrue((node, factory.shift_by_index(node, 1)) in graph_edges_without_capacities
+                                    or (factory.shift_by_index(node, 1),
+                                        node) in graph_edges_without_capacities)
+
+    def test_generate_deterministic_graph_edges_generates_long_links(self):
+        for max_dth in range(1, 5):
+            for dth in range(1, max_dth +1):
+                threshold = 2 ** dth
+                max_threshold = 2 ** max_dth
+                factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=threshold,
+                                                                max_distance_threshold=max_threshold)
+                graph_edges = factory.generate_deterministic_graph_edges()
+                graph_edges_without_capacities = [(x[0], x[1]) for x in graph_edges]
+
+                for node in range(1, factory.number_of_nodes + 1):
+                    if node % max_threshold == 1:
+                        self.assertTrue((node, factory.shift_by_index(node, threshold)) in graph_edges_without_capacities
+                                        or (factory.shift_by_index(node, threshold),
+                                            node) in graph_edges_without_capacities)
+
 
 '''
 Testing the randomly generated power law graph

@@ -100,10 +100,12 @@ def link_prediction_weight(main_graph, start: int, end: int, shortest_path_sourc
         If the source vertex has knowledge about the current edge, then we assign the real weight.
 
     """
+    """
     if start == shortest_path_source or end == shortest_path_source:
         return weight(main_graph, start, end)
     else:
-        return main_graph.get_stored_weight_of_edge(start, end)
+    """
+    return main_graph.get_stored_weight_of_edge(start, end)
 
 
 def dijkstra(graph, start_node: int, end_node: int, link_prediction: bool = False) -> list:
