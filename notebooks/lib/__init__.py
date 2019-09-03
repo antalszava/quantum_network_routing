@@ -12,6 +12,23 @@ if __name__ == "__main__":
     # We specify a varying value for the distance threshold (dth), whereas the maximum distance threshold (max dth)
     # is constant (additional edges are added for the case when the dth is not equal to max dth
     initial_knowledge_results = []
+    samples = 100
+    threshold = 4
+    max_dth = 4
+    start = time.time()
+
+    # On-demand
+    factory = graph_edge_factory.VirtualEdgeFactory(distance_threshold=threshold, max_distance_threshold=max_dth)
+    graph_edges = factory.generate_deterministic_graph_edges()
+    arguments = {'algorithm': routing_algorithms.initial_knowledge_init, 'graph_edges': graph_edges,
+                 'link_prediction': False, 'exponential_scale': True}
+    topology_result, errors, length = routing_simulation.run_algorithm_for_graphs(50, samples, arguments)
+    initial_knowledge_results.append(topology_result)
+    end = time.time()
+    plot.plot_results(initial_knowledge_results, 'initial_knowledge_maxdth_' + str(max_dth) + str(end - start),
+                 save_tikz=False)
+    '''
+    initial_knowledge_results = []
     initial_knowledge_errors = []
     samples = 2
     max_dth = 16
@@ -33,3 +50,4 @@ if __name__ == "__main__":
     end = time.time()
     plot.plot_results(initial_knowledge_results, 'initial_knowledge_random_k1_graph_dth_' + str(max_dth) + str(end - start),
                  save_tikz=False)
+    '''

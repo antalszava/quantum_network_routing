@@ -8,6 +8,8 @@ import graph_edge_factory
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as ss
+import random
+
 
 class Settings:
     """
@@ -108,10 +110,26 @@ def extract_argument(argument_dictionary: dict, key: str, default_value):
     return extracted_argument
 
 
-def run_for_specific_source_destination_pair(number_of_source_destination_pairs: int, samples: int, algorithm=None,
-                                             graph_edges: list = None, distance_threshold: int = None,
-                                             propagation_radius: int = None, exponential_scale: bool = True,
-                                             link_prediction: bool = False):
+def run_selected_algorithm(current_algorithm, source_destination_pairs: list, graph_edges: list = None,
+                           propagation_radius: int = None, exponential_scale: bool = True,
+                           link_prediction: bool = False):
+
+    if current_algorithm == routing_algorithms.local_knowledge_algorithm and propagation_radius is not None:
+        results: tuple = current_algorithm(graph_edges, source_destination_pairs, propagation_radius,
+                                           exponential_scale=exponential_scale)
+    elif current_algorithm == routing_algorithms.global_knowledge_init:
+        results: tuple = current_algorithm(graph_edges, source_destination_pairs,
+                                           exponential_scale=exponential_scale)
+    else:
+        results: tuple = current_algorithm(graph_edges, source_destination_pairs, link_prediction=link_prediction,
+                                           exponential_scale=exponential_scale)
+    return results
+
+
+def run_for_specific_source_destination_pairs(source_destination_pairs: list, samples: int, algorithm=None,
+                                              graph_edges: list = None, distance_threshold: int = None,
+                                              propagation_radius: int = None, exponential_scale: bool = True,
+                                              link_prediction: bool = False):
 
     results_for_source_destination = []
     link_length_dictionary = {}
@@ -124,28 +142,28 @@ def run_for_specific_source_destination_pair(number_of_source_destination_pairs:
             graph_edges = factory.generate_random_power_law_graph_edges()
             # helper.add_dictionary_to_dictionary(link_length_dictionary, link_lengths)
 
-        if algorithm == routing_algorithms.local_knowledge_algorithm and propagation_radius is not None:
-            results: tuple = algorithm(graph_edges, number_of_source_destination_pairs, propagation_radius,
-                                       exponential_scale=exponential_scale)
-        elif algorithm == routing_algorithms.global_knowledge_init:
-            results: tuple = algorithm(graph_edges, number_of_source_destination_pairs,
-                                       exponential_scale=exponential_scale)
+        results = None
+        # if multiple algorithms were specified
+        if isinstance(algorithm, list):
+            for current_algorithm in algorithm:
+                results = run_selected_algorithm(current_algorithm, source_destination_pairs, graph_edges,
+                                                 propagation_radius, exponential_scale, link_prediction)
         else:
-            results: tuple = algorithm(graph_edges, number_of_source_destination_pairs, link_prediction=link_prediction,
-                                       exponential_scale=exponential_scale)
+            results = run_selected_algorithm(algorithm, source_destination_pairs, graph_edges, propagation_radius,
+                                             exponential_scale, link_prediction)
 
         results_for_source_destination.append(results)
     return results_for_source_destination, link_length_dictionary
 
 
-def extract_arguments_for_run_round(number_of_source_destination_pairs: int,
+def extract_arguments_for_run_round(source_destination_pairs: list,
                                     samples: int, algorithm_arguments = None):
     """
     Execute the simulation for a specific number of source and destination pairs multiple times
 
     Parameters
     ----------
-    number_of_source_destination_pairs: int
+    source_destination_pairs: int
         Specifies the number of demands that need to be generated.
 
     samples: int
@@ -168,9 +186,9 @@ def extract_arguments_for_run_round(number_of_source_destination_pairs: int,
 
     # Running the simulation for the specific source and destination pairs
     results_for_source_destination, link_length_dictionary =\
-        run_for_specific_source_destination_pair(number_of_source_destination_pairs, samples, algorithm, graph_edges,
-                                                 distance_threshold, propagation_radius,
-                                                 exponential_scale, link_prediction)
+        run_for_specific_source_destination_pairs(source_destination_pairs, samples, algorithm, graph_edges,
+                                                  distance_threshold, propagation_radius,
+                                                  exponential_scale, link_prediction)
 
     return helper.map_tuple_gen(np.mean, zip(*results_for_source_destination)),\
            helper.map_tuple_gen(compute_mean_with_confidence, zip(*results_for_source_destination)),\
@@ -185,6 +203,48 @@ def compute_mean_with_confidence(data: list, confidence: float = 0.95):
     degrees_of_freedom = n - 1
     h = std_err * ss.t.ppf((1 + confidence) / 2, degrees_of_freedom)
     return h
+
+
+def generate_random_source_destination(number_of_nodes: int) -> tuple:
+    """
+    Generates a random source and destination pair based on the number of nodes specified.
+
+    Parameters
+    ----------
+    number_of_nodes : int
+        Integer specifying the number of nodes in the graph.
+
+    Returns
+    -----
+        Tuple containing the source and destination
+    """
+    random.seed()
+    source = random.randint(1, number_of_nodes)
+    dest = random.randint(1, number_of_nodes)
+    while source == dest:
+        dest = random.randint(1, number_of_nodes)
+    return source, dest
+
+
+def generate_random_pairs(number_of_pairs: int) -> list:
+    """
+    Generates a certain number of random source-destination pairs.
+
+    Parameters
+    ----------
+    number_of_pairs : int
+        Integer specifying the number of source-destination pairs to be generated.
+
+    Returns
+    -----
+        List of tuples containing the source and destination nodes
+    """
+    result = []
+    number_of_nodes = Settings().number_of_nodes
+
+    for x in range(number_of_pairs):
+        result += [generate_random_source_destination(number_of_nodes)]
+    return result
 
 
 def run_algorithm_for_graphs(number_of_source_destination_pairs: int, samples: int, algorithm_arguments = None):
@@ -208,7 +268,10 @@ def run_algorithm_for_graphs(number_of_source_destination_pairs: int, samples: i
 
     # Iterating through the remaining simulation rounds
     for x in range(1, number_of_source_destination_pairs + 1):
-        results, error, link_lengths = extract_arguments_for_run_round(x, samples, algorithm_arguments)
+        # Generate random pairs of nodes between which we are seeking a path
+        source_destination_pairs = generate_random_pairs(x)
+        results, error, link_lengths = extract_arguments_for_run_round(source_destination_pairs,
+                                                                       samples, algorithm_arguments)
 
         # Summing up the values obtained in each round
         results_for_topology.append(results)

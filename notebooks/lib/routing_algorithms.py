@@ -217,49 +217,7 @@ def serve_demands(graph, paths: deque, exponential_scale: bool = True) -> tuple:
             return latency_store, capacities_store, virtual_link_store
 
 
-def generate_random_source_destination(number_of_nodes: int) -> tuple:
-    """
-    Generates a random source and destination pair based on the number of nodes specified.
-
-    Parameters
-    ----------
-    number_of_nodes : int
-        Integer specifying the number of nodes in the graph.
-
-    Returns
-    -----
-        Tuple containing the source and destination
-    """
-    random.seed()
-    source = random.randint(1, number_of_nodes)
-    dest = random.randint(1, number_of_nodes)
-    while source == dest:
-        dest = random.randint(1, number_of_nodes)
-    return source, dest
-
-
-def generate_random_pairs(number_of_pairs: int) -> list:
-    """
-    Generates a certain number of random source-destination pairs.
-
-    Parameters
-    ----------
-    number_of_pairs : int
-        Integer specifying the number of source-destination pairs to be generated.
-
-    Returns
-    -----
-        List of tuples containing the source and destination nodes
-    """
-    result = []
-    number_of_nodes = routing_simulation.Settings().number_of_nodes
-
-    for x in range(number_of_pairs):
-        result += [generate_random_source_destination(number_of_nodes)]
-    return result
-
-
-def initialize_paths(graph, number_of_source_destination_pairs: int, link_prediction: bool = False) -> deque:
+def initialize_paths(graph, source_destination_pairs: list, link_prediction: bool = False) -> deque:
     """
     Initialise paths by generating source and destination pairs and finding the shortest path for each of them.
 
@@ -268,8 +226,8 @@ def initialize_paths(graph, number_of_source_destination_pairs: int, link_predic
     graph: Graph
         The graph in which we run our simulation.
 
-    number_of_source_destination_pairs: int
-        The paths
+    source_destination_pairs: list
+        The source and destination pairs for which paths are to be initliased.
 
     link_prediction: bool
         Value determining whether or not link prediction is used.
@@ -278,12 +236,10 @@ def initialize_paths(graph, number_of_source_destination_pairs: int, link_predic
     -----
         A deque of shortest paths
     """
-    # Generate random pairs of nodes between which we are seeking a path
-    random_pairs = generate_random_pairs(number_of_source_destination_pairs)
 
     # Assemble paths into one deque
     paths = deque()
-    for pair in random_pairs:
+    for pair in source_destination_pairs:
         # all_shortest_paths = list(nx.all_shortest_paths(graph.G, pair[0], pair[1], weight='weight'))
 
         if not link_prediction:
@@ -377,7 +333,7 @@ def update_local_knowledge(main_graph, current_path: list, propagation_radius: i
     update_along_physical_graph(main_graph, end_node, node_after, current_path)
 
 
-def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pairs: int, propagation_radius: int = 0,
+def local_knowledge_algorithm(graph_edges: list, source_destination_pairs: list, propagation_radius: int = 0,
                               exponential_scale: bool = True):
     """
     Runs the local knowledge algorithm specified by a propagation radius.
@@ -389,8 +345,8 @@ def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pa
     graph_edges: list
         The graph edges to be added as local knowledge to the vertices of the graph.
 
-    number_of_source_destination_pairs: int
-        Specifies the number of demands that need to be generated.
+    source_destination_pairs: list
+        Specifies the source-destination pairs for which the algorithm will be computed.
 
     propagation_radius: int
         Index of the end vertex, towards which we are looking for the shortest path.
@@ -403,21 +359,15 @@ def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pa
     main_graph = create_graph_with_local_knowledge(graph_edges)
 
     result_for_source_destination = []
-    for x in range(1, number_of_source_destination_pairs + 1):
+    for sd_pair in source_destination_pairs:
 
         temp_result: tuple = ()
 
         simulation_settings = routing_simulation.Settings()
 
-        source = random.randint(1, simulation_settings.number_of_nodes)
-        dest = random.randint(1, simulation_settings.number_of_nodes)
-
-        while source == dest:
-            dest = random.randint(1, simulation_settings.number_of_nodes)
-
         # Initialize path
         # Determine shortest path based on local knowledge
-        current_path = shortest_path.dijkstra(main_graph.vertices[source].local_knowledge, source, dest)
+        current_path = shortest_path.dijkstra(main_graph.vertices[sd_pair[0]].local_knowledge, sd_pair[0], sd_pair[1])
         current_distance = len(current_path)-1
 
         temp_result += (distribute_entanglement(main_graph, current_path, exponential_scale),)
@@ -432,7 +382,7 @@ def local_knowledge_algorithm(graph_edges: list, number_of_source_destination_pa
     return helper.map_tuple_gen(np.mean, zip(*result_for_source_destination))
 
 
-def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: int,
+def initial_knowledge_algorithm(main_graph, source_destination_pairs: list,
                                 link_prediction: bool = False, exponential_scale: bool = True) -> tuple:
     """
     Runs the initial knowledge algorithm.
@@ -443,8 +393,8 @@ def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: 
     main_graph: Graph
         The graph in which we run our simulation.
 
-    number_of_source_destination_pairs: int
-        Specifies the number of demands that need to be generated.
+    source_destination_pairs: list
+        Specifies the source-destination pairs for which the algorithm will be computed.
 
     link_prediction: bool
         Value determining whether or not link prediction is used.
@@ -455,7 +405,7 @@ def initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs: 
 
     # Initialize paths in advance, then processing them one by one
     # The change in network is not considered in this approach (path is NOT UPDATED)
-    path_store = initialize_paths(main_graph, number_of_source_destination_pairs, link_prediction=link_prediction)
+    path_store = initialize_paths(main_graph, source_destination_pairs, link_prediction=link_prediction)
 
     # Storing the distances of the paths
     distances = []
@@ -515,7 +465,7 @@ def initial_knowledge_step(main_graph, current_step: int, time_window_size: int,
     return None
 
 
-def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int, time_window_size: int = 1,
+def initial_knowledge_init(graph_edges: list, source_destination_pairs: list, time_window_size: int = 1,
                            link_prediction: bool = False, exponential_scale: bool = True):
     """
     Initializes the initial knowledge algorithm.
@@ -527,7 +477,7 @@ def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs
     graph_edges: list
         The graph in which we run our simulation.
 
-    number_of_source_destination_pairs: int
+    source_destination_pairs: list
         Specifies the number of demands that need to be generated.
 
     time_window_size: int
@@ -543,6 +493,7 @@ def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs
     number_of_measures = 4
     final_results = tuple([] for x in range(number_of_measures))
     main_graph = graph.Graph(graph_edges, link_prediction=link_prediction)
+    number_of_source_destination_pairs = len(source_destination_pairs)
 
     if link_prediction:
         k = 1
@@ -551,14 +502,14 @@ def initial_knowledge_init(graph_edges: list, number_of_source_destination_pairs
                                    final_results, link_prediction)
             k += 1
     else:
-        final_results = initial_knowledge_algorithm(main_graph, number_of_source_destination_pairs,
+        final_results = initial_knowledge_algorithm(main_graph, source_destination_pairs,
                                                     link_prediction=link_prediction,
                                                     exponential_scale=exponential_scale)
 
     return helper.map_tuple_gen(np.mean, final_results)
 
 
-def global_knowledge_algorithm(main_graph, number_of_source_destination_pairs: int,
+def global_knowledge_algorithm(main_graph, source_destination_pairs: list,
                                exponential_scale: bool = True) -> list:
     """
     Applies the global knowledge approach for a certain graph by generating a specific number of demands.
@@ -568,7 +519,7 @@ def global_knowledge_algorithm(main_graph, number_of_source_destination_pairs: i
     main_graph : Graph
         The graph in which we serve the demands according to the global knowledge approach.
 
-    number_of_source_destination_pairs: int
+    source_destination_pairs: list
         Specifies the number of demands that need to be generated.
 
     exponential_scale: bool
@@ -584,11 +535,10 @@ def global_knowledge_algorithm(main_graph, number_of_source_destination_pairs: i
 
     """
     result_for_source_destination = []
-    number_of_nodes = routing_simulation.Settings().number_of_nodes
-    for x in range(1, number_of_source_destination_pairs + 1):
+    for sd_pair in source_destination_pairs:
         temp_result = ()
 
-        source, dest = generate_random_source_destination(number_of_nodes)
+        source, dest = sd_pair[0], sd_pair[1]
 
         # Initialize path
         # The change in network is considered in this approach (path is UPDATED)
@@ -602,7 +552,7 @@ def global_knowledge_algorithm(main_graph, number_of_source_destination_pairs: i
     return result_for_source_destination
 
 
-def global_knowledge_init(graph_edges: list, number_of_source_destination_pairs: int,
+def global_knowledge_init(graph_edges: list, source_destination_pairs: list,
                           exponential_scale: bool = True) -> tuple:
     """
     Initiates the global knowledge approach in graph.
@@ -612,8 +562,8 @@ def global_knowledge_init(graph_edges: list, number_of_source_destination_pairs:
     graph_edges : list of tuple
         List of edges that specifies the edges of the graph to be created.
 
-    number_of_source_destination_pairs: bool
-        Specifies the number of demands that need to be generated.
+    source_destination_pairs: list
+        Specifies the source-destination pairs.
 
     exponential_scale: bool
         Specifies whether long link creation scales exponentially or polynomially with time.
@@ -621,6 +571,6 @@ def global_knowledge_init(graph_edges: list, number_of_source_destination_pairs:
     """
     main_graph = graph.Graph(graph_edges)
 
-    result_for_source_destination = global_knowledge_algorithm(main_graph, number_of_source_destination_pairs,
+    result_for_source_destination = global_knowledge_algorithm(main_graph, source_destination_pairs,
                                                                exponential_scale)
     return helper.map_tuple_gen(np.mean, zip(*result_for_source_destination))
