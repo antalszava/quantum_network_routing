@@ -7,9 +7,10 @@ import routing_simulation
 import helper
 import graph
 import shortest_path
-import networkx as nx
+import inspect
 
 from collections import deque
+from enum import Enum
 import numpy as np
 
 
@@ -65,7 +66,7 @@ def compute_latency_to_rebuild(graph, initial_node: int, end_node: int,
     ----------
     graph: Graph
         The graph in which we run our simulation.
-    start_node: int
+    initial_node: int
         Index of the starting vertex, from which we are looking for the shortest path.
     end_node: int
         Index of the end vertex, towards which we are looking for the shortest path.
@@ -88,19 +89,19 @@ def compute_latency_to_rebuild(graph, initial_node: int, end_node: int,
     """
     latency_to_rebuild = 0
     could_rebuild_in_time_window = True
+    signature = inspect.signature(routing_simulation.TopologySettings)
+    rebuild_probability = signature.parameters.get('rebuild_probability').default
+    time_threshold = signature.parameters.get('time_threshold').default
 
     # Check if there are links which were not available through the path
     if no_link_length > 0:
 
         # If we cannot create the missing entangled links in the specific threshold time
         # Then simply generate entangled links along the physical graph
-        local_settings = routing_simulation.Settings()
-        successful_rebuild_time = 1 / local_settings.rebuild_probability
+        successful_rebuild_time = 1 / rebuild_probability
+        time_to_rebuild_path = successful_rebuild_time ** no_link_length if exponential_scale else no_link_length ** 2
 
-        time_to_rebuild_path = successful_rebuild_time ** no_link_length \
-            if exponential_scale else no_link_length ** 2
-
-        if local_settings.time_threshold < time_to_rebuild_path:
+        if time_threshold < time_to_rebuild_path:
 
             could_rebuild_in_time_window = False
 
@@ -193,6 +194,8 @@ def serve_demands(graph, paths: deque, exponential_scale: bool = True) -> tuple:
     exponential_scale: bool
         Value determining whether or not the latency scales exponentially with the distance.
         If the value if False, a polynomial scaling is used.
+    link_prediction: bool
+        Value determining whether or not link prediction is used.
 
     Returns
     -----
@@ -217,7 +220,8 @@ def serve_demands(graph, paths: deque, exponential_scale: bool = True) -> tuple:
             return latency_store, capacities_store, virtual_link_store
 
 
-def initialize_paths(graph, source_destination_pairs: list, link_prediction: bool = False) -> deque:
+def initialize_paths(graph, source_destination_pairs: list,
+                     link_prediction: Enum = None) -> deque:
     """
     Initialise paths by generating source and destination pairs and finding the shortest path for each of them.
 
@@ -239,14 +243,18 @@ def initialize_paths(graph, source_destination_pairs: list, link_prediction: boo
 
     # Assemble paths into one deque
     paths = deque()
+
+    current_step = 1
     for pair in source_destination_pairs:
         # all_shortest_paths = list(nx.all_shortest_paths(graph.G, pair[0], pair[1], weight='weight'))
 
-        if not link_prediction:
-            path = shortest_path.dijkstra(graph, pair[0], pair[1])
-        else:
-            path = shortest_path.dijkstra(graph, pair[0], pair[1], link_prediction=link_prediction)
+        path = shortest_path.dijkstra(graph, pair[0], pair[1], link_prediction=link_prediction)
 
+        if link_prediction is not None:
+            graph.update_stored_weights(current_step)
+            current_step += 1
+            if current_step == 6:
+                a =3
         paths.appendleft(path)
 
         '''
@@ -363,8 +371,6 @@ def local_knowledge_algorithm(graph_edges: list, source_destination_pairs: list,
 
         temp_result: tuple = ()
 
-        simulation_settings = routing_simulation.Settings()
-
         # Initialize path
         # Determine shortest path based on local knowledge
         current_path = shortest_path.dijkstra(main_graph.vertices[sd_pair[0]].local_knowledge, sd_pair[0], sd_pair[1])
@@ -382,8 +388,8 @@ def local_knowledge_algorithm(graph_edges: list, source_destination_pairs: list,
     return helper.map_tuple_gen(np.mean, zip(*result_for_source_destination))
 
 
-def initial_knowledge_algorithm(main_graph, source_destination_pairs: list,
-                                link_prediction: bool = False, exponential_scale: bool = True) -> tuple:
+def initial_knowledge_algorithm(main_graph, source_destination_pairs: list, exponential_scale: bool = True,
+                                link_prediction: Enum = None) -> tuple:
     """
     Runs the initial knowledge algorithm.
     The local knowledge of nodes about the virtual links used within a path is not updated.
@@ -405,7 +411,7 @@ def initial_knowledge_algorithm(main_graph, source_destination_pairs: list,
 
     # Initialize paths in advance, then processing them one by one
     # The change in network is not considered in this approach (path is NOT UPDATED)
-    path_store = initialize_paths(main_graph, source_destination_pairs, link_prediction=link_prediction)
+    path_store = initialize_paths(main_graph, source_destination_pairs, link_prediction)
 
     # Storing the distances of the paths
     distances = []
@@ -420,53 +426,8 @@ def initial_knowledge_algorithm(main_graph, source_destination_pairs: list,
     return results
 
 
-def initial_knowledge_step(main_graph, current_step: int, time_window_size: int,
-                           number_of_source_destination_pairs: int, final_results: tuple,
-                           link_prediction: bool = False) -> None:
-    """
-    Runs one step of the initial knowledge algorithm.
-    The local knowledge of nodes about the virtual links used within a path is not updated.
-
-    Parameters
-    ----------
-    main_graph: Graph
-        The graph in which we run our simulation.
-
-    current_step: int
-        Specifies the step at which the initial knowledge algorithm is at.
-
-    time_window_size: int
-        Specifies the size of the time window used.
-
-    number_of_source_destination_pairs: int
-        Specifies the number of demands that need to be generated.
-
-    final_results: tuple
-        Tuple containing the final results for the simulation.
-
-    link_prediction: bool
-        Value determining whether or not link prediction is used.
-
-    """
-    step_in_time_window = current_step % time_window_size
-    end_of_this_time_window = step_in_time_window == 0
-
-    if end_of_this_time_window or current_step == number_of_source_destination_pairs:
-        number_of_demands = time_window_size if end_of_this_time_window else step_in_time_window
-        time_window_results = initial_knowledge_algorithm(main_graph, number_of_demands,
-                                                          link_prediction=link_prediction)
-        for x in range(len(time_window_results)):
-            [final_results[x].append(element) for element in time_window_results[x]]
-
-        # Update weights in the graph which might have been consumed
-        if link_prediction:
-            main_graph.update_stored_weights(current_step)
-
-    return None
-
-
-def initial_knowledge_init(graph_edges: list, source_destination_pairs: list, time_window_size: int = 1,
-                           link_prediction: bool = False, exponential_scale: bool = True):
+def initial_knowledge_init(graph_edges: list, source_destination_pairs: list,
+                           link_prediction: Enum = None, exponential_scale: bool = True):
     """
     Initializes the initial knowledge algorithm.
     Create paths for the specified number of source and destination pairs, then send the packets along a specific path
@@ -492,19 +453,10 @@ def initial_knowledge_init(graph_edges: list, source_destination_pairs: list, ti
 
     number_of_measures = 4
     final_results = tuple([] for x in range(number_of_measures))
-    main_graph = graph.Graph(graph_edges, link_prediction=link_prediction)
-    number_of_source_destination_pairs = len(source_destination_pairs)
+    main_graph = graph.Graph(graph_edges, link_prediction)
 
-    if link_prediction:
-        k = 1
-        while k < number_of_source_destination_pairs + 1:
-            initial_knowledge_step(main_graph, k, time_window_size, number_of_source_destination_pairs,
-                                   final_results, link_prediction)
-            k += 1
-    else:
-        final_results = initial_knowledge_algorithm(main_graph, source_destination_pairs,
-                                                    link_prediction=link_prediction,
-                                                    exponential_scale=exponential_scale)
+    final_results = initial_knowledge_algorithm(main_graph, source_destination_pairs, exponential_scale,
+                                                link_prediction)
 
     return helper.map_tuple_gen(np.mean, final_results)
 

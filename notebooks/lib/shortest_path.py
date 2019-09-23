@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 
 import heapq
-import routing_simulation
+from enum import Enum
 
 
 def traceback_path(target, parents) -> list:
@@ -73,10 +73,9 @@ def weight(main_graph, start_node: int, end_node: int) -> int:
     """
 
     if main_graph.get_edge_capacity(start_node, end_node) == 0:
-        return routing_simulation.Settings().long_link_cost *\
-               main_graph.physical_distance(start_node=start_node, end_node=end_node)
+        return main_graph.long_link_cost * main_graph.physical_distance(start_node=start_node, end_node=end_node)
     else:
-        return routing_simulation.Settings().original_cost
+        return main_graph.original_cost
 
 
 def link_prediction_weight(main_graph, start: int, end: int, shortest_path_source: int) -> int:
@@ -108,7 +107,8 @@ def link_prediction_weight(main_graph, start: int, end: int, shortest_path_sourc
     return main_graph.get_stored_weight_of_edge(start, end)
 
 
-def dijkstra(graph, start_node: int, end_node: int, link_prediction: bool = False) -> list:
+def dijkstra(graph, start_node: int, end_node: int,
+             link_prediction: Enum = None) -> list:
     """
     Finding the shortest path between a starting vertex and an end vertex.
     The Dijkstra algorithm with a heap construct is used, once the chain of vertices are determined for the shortest
@@ -163,7 +163,7 @@ def dijkstra(graph, start_node: int, end_node: int, link_prediction: bool = Fals
                 continue
 
             current_weight = weight(graph, current, child)\
-                if not link_prediction else link_prediction_weight(graph, current, child, start_node)
+                if link_prediction is None else link_prediction_weight(graph, current, child, start_node)
 
             tentative_cost = distance[current] + current_weight
 
