@@ -251,10 +251,11 @@ def initialize_paths(graph, source_destination_pairs: list,
         path = shortest_path.dijkstra(graph, pair[0], pair[1], link_prediction=link_prediction)
 
         if link_prediction is not None:
-            graph.update_stored_weights(current_step)
+            if graph.need_to_update_stored_weights(current_step):
+                graph.update_stored_weights(current_step)
+            if link_prediction is routing_simulation.LinkPredictionTypes.IterativeBetweenness:
+                graph.initialize_link_prediction(link_prediction)
             current_step += 1
-            if current_step == 6:
-                a =3
         paths.appendleft(path)
 
         '''

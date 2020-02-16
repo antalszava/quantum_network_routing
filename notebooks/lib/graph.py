@@ -139,7 +139,7 @@ class Graph:
         self.edge_betweenness_centrality_store = {}
         self.link_consumption_time = {}
         self.elapsed_time = 0
-        # self.edge_list = edges
+        self.edge_list = edges
 
         self.G = nx.Graph()
         for x in edges:
@@ -276,6 +276,15 @@ class Graph:
                     self.edge_list.remove(stored_edge)
                     continue
 
+    def need_to_update_stored_weights(self, elapsed_time: int):
+        """
+
+        """
+        original_weight = self.original_cost
+        return [x for x in self.edge_betweenness_centrality_store
+                           if self.link_consumption_time[x] < elapsed_time and
+                           self.get_stored_weight_of_edge(*x) == original_weight] != []
+
     def update_stored_weights(self, elapsed_time: int):
         """
         Determines those stored weights of edges in the graph whose link consumption time has been passed according to
@@ -306,6 +315,15 @@ class Graph:
             start_node = edge[0]
             end_node = edge[1]
             successful_rebuild_time = 1 / self.rebuild_probability
+
+            # Decrease capacity based on the prediction that we have made
+            edge_to_remove = [element for element in self.edge_list if element[0] == start_node and
+                              element[1] == end_node or element[0] == end_node and element[1] == start_node][0]
+
+
+            self.edge_list.remove(edge_to_remove)
+            self.edge_list.append((edge_to_remove[0], edge_to_remove[1], 0))
+
 
             #new_weight = successful_rebuild_time ** self.physical_distance(start_node, end_node)
             new_weight = self.long_link_cost * \
@@ -400,6 +418,8 @@ class Graph:
         Returns:
             List of shortest paths for each viable pair.
         """
+        # TODO: revert local graph
+        local_graph = Graph(self.edge_list, None)
         return [shortest_path.dijkstra(self, x, y) for x in range(1, len(self.Vertices) + 1)
                 for y in range(1, len(self.Vertices) + 1) if x != y and x < y]
 
@@ -440,7 +460,8 @@ class Graph:
             remainder_of_path.appendleft(end_node)
 
     def initialize_link_prediction(self, link_prediction: Enum):
-        if link_prediction is routing_simulation.LinkPredictionTypes.Betweenness:
+        if link_prediction in [routing_simulation.LinkPredictionTypes.Betweenness,
+                               routing_simulation.LinkPredictionTypes.IterativeBetweenness]:
             self.assign_edge_frequencies()
             self.initialize_link_consumption_times()
         elif link_prediction is routing_simulation.LinkPredictionTypes.Closeness:

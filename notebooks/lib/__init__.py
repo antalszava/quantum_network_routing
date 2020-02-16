@@ -12,11 +12,12 @@ if __name__ == "__main__":
     # We specify a varying value for the distance threshold (dth), whereas the maximum distance threshold (max dth)
     # is constant (additional edges are added for the case when the dth is not equal to max dth
 
-    samples = 100
+    samples = 5
     threshold = 4
     max_dth = 4
     number_of_nodes = 32
     link_prediction_betweenness = routing_simulation.LinkPredictionTypes.Betweenness
+    link_prediction_iterative_betweenness = routing_simulation.LinkPredictionTypes.IterativeBetweenness
     link_prediction_closeness = routing_simulation.LinkPredictionTypes.Closeness
 
     initial_knowledge_settings = routing_simulation.AlgorithmSettings(algorithm=routing_algorithms.initial_knowledge_init)
@@ -24,12 +25,16 @@ if __name__ == "__main__":
                                                                             routing_algorithms.initial_knowledge_init,
                                                                             link_prediction=link_prediction_betweenness)
 
+    initial_knowledge_iterative_betweennes_settings = routing_simulation.AlgorithmSettings(algorithm=
+                                                                                 routing_algorithms.initial_knowledge_init,
+                                                                                 link_prediction=
+                                                                                 link_prediction_iterative_betweenness)
+
     initial_knowledge_closenness_settings = routing_simulation.AlgorithmSettings(algorithm=
                                                                                  routing_algorithms.initial_knowledge_init,
                                                                                  link_prediction=link_prediction_closeness)
 
-    algorithm_settings = [initial_knowledge_settings, initial_knowledge_betweennes_settings,
-                          initial_knowledge_closenness_settings]
+    algorithm_settings = [initial_knowledge_settings, initial_knowledge_betweennes_settings]
     simulation_settings = routing_simulation.SimulationSettings(number_of_samples=samples)
 
     factory = graph_edge_factory.VirtualEdgeFactory(number_of_nodes=number_of_nodes,

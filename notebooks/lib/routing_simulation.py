@@ -19,8 +19,9 @@ class LinkPredictionTypes(Enum):
 
     # Slightly different from betweenness centrality
     Betweenness = 1
-    BetweennessCentrality = 2
-    Closeness = 3
+    IterativeBetweenness = 2
+    BetweennessCentrality = 3
+    Closeness = 4
 
 
 class AlgorithmSettings:
