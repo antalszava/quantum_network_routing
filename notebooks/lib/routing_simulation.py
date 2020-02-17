@@ -185,8 +185,8 @@ class Simulation:
         self.link_length_dictionary = defaultdict(list)
         self.errors = defaultdict(list)
 
-    def run_algorithm_for_source_destination_pairs(self, algorithm_settings: AlgorithmSettings,
-                                                   source_destination_pairs: list):
+    @staticmethod
+    def extract_approach_name(algorithm_settings):
 
         name_of_approach = algorithm_settings.algorithm.__name__
 
@@ -196,21 +196,24 @@ class Simulation:
         if not algorithm_settings.exponential_scale:
             name_of_approach += 'polynomial'
 
+        return name_of_approach
+
+    def run_algorithm_for_source_destination_pairs(self, algorithm_settings: AlgorithmSettings,
+                                                   source_destination_pairs: list):
+
         if algorithm_settings.algorithm == routing_algorithms.local_knowledge_algorithm \
                 and algorithm_settings.propagation_radius is not None:
-            self.current_results[name_of_approach]\
-                .append(algorithm_settings.algorithm(self.topology_settings.graph_edges, source_destination_pairs,
+            result = algorithm_settings.algorithm(self.topology_settings.graph_edges, source_destination_pairs,
                                                      algorithm_settings.propagation_radius,
-                                                     algorithm_settings.exponential_scale))
+                                                     algorithm_settings.exponential_scale)
         elif algorithm_settings.algorithm == routing_algorithms.global_knowledge_init:
-            self.current_results[name_of_approach]\
-                .append(algorithm_settings.algorithm(self.topology_settings.graph_edges, source_destination_pairs,
-                                                     algorithm_settings.exponential_scale))
+            result = algorithm_settings.algorithm(self.topology_settings.graph_edges, source_destination_pairs,
+                                                     algorithm_settings.exponential_scale)
         else:
-            self.current_results[name_of_approach]\
-                .append(algorithm_settings.algorithm(self.topology_settings.graph_edges, source_destination_pairs,
+            result = algorithm_settings.algorithm(self.topology_settings.graph_edges, source_destination_pairs,
                                                      link_prediction=algorithm_settings.link_prediction,
-                                                     exponential_scale= algorithm_settings.exponential_scale))
+                                                     exponential_scale= algorithm_settings.exponential_scale)
+        return result
 
     def run_algorithms_several_times(self, number_of_source_destination_pairs: int):
         for x in range(1, self.simulation_settings.number_of_samples + 1):
@@ -219,7 +222,9 @@ class Simulation:
                                                              self.topology_settings.number_of_nodes)
 
             for current_algorithm_settings in self.list_of_algorithm_settings:
-                self.run_algorithm_for_source_destination_pairs(current_algorithm_settings, source_destination_pairs)
+                name_of_approach = Simulation.extract_approach_name(current_algorithm_settings)
+                result = self.run_algorithm_for_source_destination_pairs(current_algorithm_settings, source_destination_pairs)
+                self.current_results[name_of_approach].append(result)
 
     def extract_arguments_for_run_round(self, number_of_source_destination_pairs: int):
         """
