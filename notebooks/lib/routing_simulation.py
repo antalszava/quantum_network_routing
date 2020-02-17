@@ -32,6 +32,18 @@ class AlgorithmSettings:
         self.link_prediction = link_prediction
         self.exponential_scale = exponential_scale
 
+    @property
+    def approach_name(self):
+
+        approach_name = self.algorithm.__name__
+
+        if self.link_prediction is not None:
+            approach_name += self.link_prediction.name
+
+        if not self.exponential_scale:
+            approach_name += 'polynomial'
+
+        return approach_name
 
 class SimulationSettings:
     def __init__(self, number_of_source_destination_pairs: int = 50, number_of_samples: int = 1000):
@@ -185,19 +197,6 @@ class Simulation:
         self.link_length_dictionary = defaultdict(list)
         self.errors = defaultdict(list)
 
-    @staticmethod
-    def extract_approach_name(algorithm_settings):
-
-        name_of_approach = algorithm_settings.algorithm.__name__
-
-        if algorithm_settings.link_prediction is not None:
-            name_of_approach += algorithm_settings.link_prediction.name
-
-        if not algorithm_settings.exponential_scale:
-            name_of_approach += 'polynomial'
-
-        return name_of_approach
-
     def run_algorithm_for_source_destination_pairs(self, algorithm_settings: AlgorithmSettings,
                                                    source_destination_pairs: list):
 
@@ -222,9 +221,9 @@ class Simulation:
                                                              self.topology_settings.number_of_nodes)
 
             for current_algorithm_settings in self.list_of_algorithm_settings:
-                name_of_approach = Simulation.extract_approach_name(current_algorithm_settings)
+                approach_name = current_algorithm_settings.approach_name
                 result = self.run_algorithm_for_source_destination_pairs(current_algorithm_settings, source_destination_pairs)
-                self.current_results[name_of_approach].append(result)
+                self.current_results[approach_name].append(result)
 
     def extract_arguments_for_run_round(self, number_of_source_destination_pairs: int):
         """
